@@ -161,7 +161,41 @@
     }
     doc.body.innerHTML = '';
     doc.body.appendChild(frag);
+    softenMd(doc);
     return doc.body.innerHTML;
+  }
+
+  function softenMd(doc) {
+    Array.prototype.forEach.call(doc.body.querySelectorAll('li, p'), function (el) {
+      var kids = Array.prototype.filter.call(el.childNodes, function (node) {
+        return !(node.nodeType === 3 && !String(node.textContent || '').trim());
+      });
+      if (kids.length === 1 && kids[0].nodeType === 1 && kids[0].tagName === 'STRONG') {
+        var strong = kids[0];
+        while (strong.firstChild) el.insertBefore(strong.firstChild, strong);
+        el.removeChild(strong);
+      }
+    });
+    Array.prototype.forEach.call(doc.body.querySelectorAll('ul'), function (ul) {
+      var items = Array.prototype.filter.call(ul.children, function (node) { return node.tagName === 'LI'; });
+      if (!items.length) return;
+      var numbered = items.every(function (li) {
+        return /^\d+[).、]/.test(String(li.textContent || '').trim());
+      });
+      if (!numbered) return;
+      var ol = doc.createElement('ol');
+      items.forEach(function (li) {
+        var walker = doc.createTreeWalker(li, NodeFilter.SHOW_TEXT, null);
+        var text = walker.nextNode();
+        while (text && !String(text.textContent || '').trim()) text = walker.nextNode();
+        var raw = text ? String(text.textContent) : '';
+        var num = raw.match(/^\s*(\d+)[).、]\s*/);
+        if (num) li.setAttribute('value', num[1]);
+        if (text) text.textContent = raw.replace(/^\s*\d+[).、]\s*/, '');
+        ol.appendChild(li);
+      });
+      ul.parentNode.replaceChild(ol, ul);
+    });
   }
 
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -195,7 +229,7 @@
 
   function formatShort(ms) {
     var date = new Date(ms);
-    return pad(date.getHours()) + ':' + pad(date.getMinutes());
+    return (date.getMonth() + 1) + '月' + date.getDate() + '日 ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
   }
 
   function syncState() {
@@ -215,6 +249,35 @@
       return sync.at ? '连接中断，最后更新时间是 ' + formatClock(sync.at) : '连接中断';
     }
     return original || '—';
+  }
+
+  function cardSummary(report) {
+    var raw = String(report.summary || '').replace(/\*\*/g, '').trim();
+    var clipped = /…$|\.\.\.$/.test(raw);
+    if (raw && !clipped) return raw;
+    var lead = '';
+    String(report.body || '').split(/\n/).some(function (line) {
+      var text = line.replace(/^#+\s*/, '').replace(/\*\*/g, '').replace(/^[-*]\s+/, '').replace(/^>\s*/, '').trim();
+      if (!text) return false;
+      lead = text;
+      return true;
+    });
+    if (lead && !/…$|\.\.\.$/.test(lead)) return lead;
+    return raw || lead || '—';
+  }
+
+  function fullerText(text, body) {
+    var raw = String(text || '');
+    if (!/…$|\.\.\.$/.test(raw)) return raw;
+    var stem = raw.replace(/…$|\.\.\.$/, '').replace(/\s+/g, '');
+    if (stem.length < 8) return raw;
+    var flat = String(body || '').replace(/\*\*/g, '').replace(/\s+/g, '');
+    var at = flat.indexOf(stem);
+    if (at < 0) return raw;
+    var slice = flat.slice(at);
+    var end = slice.search(/[。！？]/);
+    if (end > stem.length && end < 360) return slice.slice(0, end + 1);
+    return raw;
   }
 
   function byTime(a, b) { return Date.parse(b.timestamp) - Date.parse(a.timestamp); }
@@ -251,15 +314,6 @@
       return { x: x, y: y };
     });
     return pts;
-  }
-
-  function sparkline(values) {
-    var pts = seriesPoints(values, 160, 28, 3);
-    if (!pts) return '';
-    var line = pts.map(function (p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
-    var last = pts[pts.length - 1];
-    return '<svg class="spark" viewBox="0 0 160 28" aria-hidden="true"><polyline points="' + line + '" />' +
-      '<circle cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="2.2" /></svg>';
   }
 
   function areaChart(values) {
@@ -308,15 +362,17 @@
     if (!steps.length) return '';
     var color = accentOf(report.bot_id);
     return '<div class="flow" style="--accent:' + color + '">' + steps.map(function (step, index) {
-      var node = '<div class="node"><span class="stage">' + esc(STAGE_LABEL[step.stage] || step.stage) + '</span><p>' + figs(step.text) + '</p></div>';
+      var text = fullerText(step.text, report.body);
+      var node = '<div class="node"><span class="stage">' + esc(STAGE_LABEL[step.stage] || step.stage) + '</span><p>' + figs(text) + '</p></div>';
       return index ? '<div class="arrow" aria-hidden="true"></div>' + node : node;
     }).join('') + '</div>';
   }
 
-  function detailHtml(report) {
+  function detailHtml(report, withSources) {
     var flow = flowHtml(report);
     var cls = 'expand-layout' + (flow ? ' has-flow' : '');
-    return '<div class="' + cls + '">' + flow + '<div class="md">' + mdHtml(report.body) + '</div>' + citesHtml(report.sources) + '</div>';
+    var sources = withSources ? pillsHtml(report.sources) : '';
+    return '<div class="' + cls + '">' + flow + '<div class="md">' + mdHtml(report.body) + '</div>' + sources + '</div>';
   }
 
   function markHtml(status) {
@@ -332,10 +388,10 @@
     return '<span class="dot iron glow" aria-hidden="true"></span>';
   }
 
-  function trendHtml(delta) {
+  function deltaNote(delta) {
     if (delta == null || !isFinite(delta) || delta === 0) return '';
     var arrow = delta > 0 ? '↑' : '↓';
-    return '<span class="trend">' + arrow + ' ' + Math.abs(delta) + '</span>';
+    return '<div class="kpi-note">较昨日 ' + arrow + ' ' + Math.abs(delta) + '</div>';
   }
 
   function metrics(sync) {
@@ -399,11 +455,11 @@
 
     var series = allReports().slice().reverse().map(function (report) { return report.signal_strength; });
     document.getElementById('kpis').innerHTML =
-      kpi('今日', stats.today, stats.todayDelta) +
-      kpi('在岗', stats.active, null) +
-      kpi('同步', esc(stats.sync), null) +
-      kpi('信号', stats.signal, stats.signalDelta) +
-      '<div class="kpi-chart">' + areaChart(series) + '</div>';
+      kpi('今日新增', stats.today, stats.todayDelta, '今天新到的条数') +
+      kpi('在岗', stats.active, null, '最近一条仍可读取的人数') +
+      kpi('最近同步', esc(stats.sync), null, '上次拉取成功的时间', true) +
+      kpi('累计信号', stats.signal, stats.signalDelta, '各人最新信号的均值') +
+      '<div class="kpi kpi-chart" title="按时间排列的信号强弱"><div class="kpi-label">信号走势</div>' + areaChart(series) + '</div>';
 
     var nav = '<button type="button" class="nav-item' + (state.focus ? '' : ' is-on') + '" data-focus="">全部</button>' +
       state.bots.map(function (bot) {
@@ -422,27 +478,26 @@
       var hist = state.histOpen.has(bot.bot_id);
       var cardNew = fresh && fresh.has(latest.path) ? ' is-new' : '';
       var picked = state.focus === bot.bot_id ? ' is-picked' : '';
-      var values = list.slice().reverse().map(function (report) { return report.signal_strength; });
       var past = older.map(function (report) {
         var rowOpen = state.pastOpen.has(report.path);
+        var blurb = cardSummary(report);
         return '<div style="--accent:' + accentOf(bot.bot_id) + '"><button type="button" class="line" data-toggle="past" data-path="' + esc(report.path) + '" aria-expanded="' + (rowOpen ? 'true' : 'false') + '">' +
-          markHtml(report.status) +
-          '<span class="tag">' + esc(report.tag) + '</span>' +
           '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
-          '<span class="sum">' + esc(report.summary) + '</span></button>' +
-          '<div class="expand" data-panel="past" data-path="' + esc(report.path) + '"' + (rowOpen ? '' : ' hidden') + '>' + detailHtml(report) + '</div></div>';
+          '<span class="tag">' + esc(report.tag) + '</span>' +
+          '<span class="sum" title="' + esc(blurb) + '">' + esc(blurb) + '</span>' +
+          markHtml(report.status) + '</button>' +
+          '<div class="expand" data-panel="past" data-path="' + esc(report.path) + '"' + (rowOpen ? '' : ' hidden') + '>' + detailHtml(report, true) + '</div></div>';
       }).join('');
+      var blurb = cardSummary(latest);
       return '<article class="card sync-' + sync.level + cardNew + picked + (open ? ' is-open' : '') + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
-        '<div class="accent"></div>' +
-        sparkline(values) +
         '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + statusDot(sync) + '</div>' +
         '<p class="role">' + esc(latest.role || '') + '</p>' +
         '<p class="when">' + esc(formatReportTime(latest.timestamp)) + '</p>' +
-        '<p class="summary" data-summary="' + esc(latest.summary) + '">' + esc(liveSummary(latest.summary, sync)) + '</p>' +
+        '<p class="summary" data-summary="' + esc(blurb) + '">' + esc(liveSummary(blurb, sync)) + '</p>' +
         pillsHtml(latest.sources) +
-        '<div class="expand" data-panel="card" data-path="' + esc(latest.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(latest) + '</div>' +
         '<button type="button" class="hist" data-history="' + esc(bot.bot_id) + '" aria-expanded="' + (hist ? 'true' : 'false') + '">历史</button>' +
         '<div class="past" data-history-panel="' + esc(bot.bot_id) + '"' + (hist ? '' : ' hidden') + '>' + past + '</div>' +
+        '<div class="expand" data-panel="card" data-path="' + esc(latest.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(latest) + '</div>' +
         '</article>';
     }).join('');
 
@@ -452,13 +507,14 @@
     document.getElementById('timeline').innerHTML = '<h3>时间线</h3>' + rows.map(function (report) {
       var open = state.timeOpen.has(report.path);
       var freshClass = fresh && fresh.has(report.path) ? ' is-new' : '';
+      var blurb = cardSummary(report);
       return '<div class="' + freshClass.trim() + '" style="--accent:' + accentOf(report.bot_id) + '"><button type="button" class="tl" data-toggle="time" data-path="' + esc(report.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
-        markHtml(report.status) +
-        '<span class="tag">' + esc(report.tag) + '</span>' +
-        '<span class="person">' + esc(report.name) + '</span>' +
         '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
-        '<span class="sum">' + esc(report.summary) + '</span></button>' +
-        '<div class="expand" data-panel="time" data-path="' + esc(report.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(report) + '</div></div>';
+        '<span class="person">' + esc(report.name) + '</span>' +
+        '<span class="tag">' + esc(report.tag) + '</span>' +
+        '<span class="sum" title="' + esc(blurb) + '">' + esc(blurb) + '</span>' +
+        markHtml(report.status) + '</button>' +
+        '<div class="expand" data-panel="time" data-path="' + esc(report.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(report, true) + '</div></div>';
     }).join('');
 
     if (!document.documentElement.classList.contains('ready')) {
@@ -466,11 +522,11 @@
     }
   }
 
-function kpi(label, value, delta) {
-  var id = label === '同步' ? ' id="kpi-sync"' : '';
-  return '<div class="kpi"><div class="kpi-label">' + label + '</div><div class="kpi-value"' + id + '>' +
-    value + trendHtml(delta) + '</div></div>';
-}
+  function kpi(label, value, delta, hint, wide) {
+    var id = label === '最近同步' ? ' id="kpi-sync"' : '';
+    return '<div class="kpi' + (wide ? ' kpi-wide' : '') + '" title="' + esc(hint || '') + '"><div class="kpi-label">' + esc(label) + '</div><div class="kpi-value"' + id + '>' +
+      value + '</div>' + deltaNote(delta) + '</div>';
+  }
 
   function paintSync() {
     var sync = syncState();
@@ -618,11 +674,11 @@ function kpi(label, value, delta) {
 
   function renderShell() {
     document.documentElement.classList.add('ready');
-    var block = '<div class="kpi"><div class="kpi-label">今日</div><div class="sk sk-kpi"></div></div>' +
+    var block = '<div class="kpi"><div class="kpi-label">今日新增</div><div class="sk sk-kpi"></div></div>' +
       '<div class="kpi"><div class="kpi-label">在岗</div><div class="sk sk-kpi"></div></div>' +
-      '<div class="kpi"><div class="kpi-label">同步</div><div class="sk sk-kpi"></div></div>' +
-      '<div class="kpi"><div class="kpi-label">信号</div><div class="sk sk-kpi"></div></div>' +
-      '<div class="kpi-chart"><div class="sk" style="height:56px"></div></div>';
+      '<div class="kpi kpi-wide"><div class="kpi-label">最近同步</div><div class="sk sk-kpi"></div></div>' +
+      '<div class="kpi"><div class="kpi-label">累计信号</div><div class="sk sk-kpi"></div></div>' +
+      '<div class="kpi kpi-chart"><div class="kpi-label">信号走势</div><div class="sk" style="height:40px"></div></div>';
     document.getElementById('kpis').innerHTML = block;
     document.getElementById('side').innerHTML = '<div class="sk sk-nav"></div><div class="sk sk-nav"></div><div class="sk sk-nav"></div>';
     document.getElementById('chips').innerHTML = '<span class="sk sk-chip"></span><span class="sk sk-chip"></span><span class="sk sk-chip"></span>';
