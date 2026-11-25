@@ -1,0 +1,3 @@
+# Copy to server.url, or export CAP_SERVER_URL instead.
+# capacitor.config.ts reads that value. It does not hard-code a host.
+https://jonesrbo7-star.github.io/crew-pulse/

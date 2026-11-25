@@ -1,0 +1,16 @@
+{
+  "bots": [
+    {
+      "bot_id": "bot-01",
+      "en_name": "Ivo",
+      "folder": "ivo",
+      "display_order": 1
+    },
+    {
+      "bot_id": "bot-02",
+      "en_name": "Johnson",
+      "folder": "johnson",
+      "display_order": 2
+    }
+  ]
+}

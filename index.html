@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1A1B1C">
+  <title></title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script>
+    try {
+      if (sessionStorage.getItem('crew-pulse-unlocked') === '1') {
+        document.documentElement.classList.add('unlocked');
+      }
+    } catch (e) {}
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500&family=Noto+Serif+SC:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="gate" class="gate">
+    <form id="gate-form">
+      <span class="dot ok glow" aria-hidden="true"></span>
+      <input id="gate-input" type="password" autocomplete="current-password" aria-label="进入" spellcheck="false">
+      <p id="gate-error" class="gate-error">未通过</p>
+      <button type="submit" class="sr">进入</button>
+    </form>
+  </div>
+  <div id="app">
+    <div class="page">
+      <header id="topbar" class="topbar"></header>
+      <main id="board" class="board"></main>
+      <section id="timeline" class="timeline"></section>
+    </div>
+  </div>
+  <noscript><p class="noscript">需要脚本才能阅读。</p></noscript>
+  <script src="vendor/js-yaml.min.js"></script>
+  <script src="vendor/marked.min.js"></script>
+  <script src="config/site.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

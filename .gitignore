@@ -1,0 +1,9 @@
+_site/
+.DS_Store
+*.log
+android-shell/node_modules/
+android-shell/android/
+android-shell/ios/
+android-shell/.env
+android-shell/server.url
+android-shell/.gradle/
