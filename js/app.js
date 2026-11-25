@@ -595,6 +595,7 @@
       }).join('');
       var blurb = cardSummary(latest);
       return '<article class="card sync-' + sync.level + cardNew + picked + (open ? ' is-open' : '') + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
+        '<div class="sheet">' +
         '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + statusDot(bot, latest.timestamp) + '</div>' +
         '<p class="role">' + esc(latest.role || '') + '</p>' +
         '<p class="when">' + esc(formatReportTime(latest.timestamp)) + '</p>' +
@@ -603,7 +604,7 @@
         '<button type="button" class="hist" data-history="' + esc(bot.bot_id) + '" aria-expanded="' + (hist ? 'true' : 'false') + '">历史</button></div>' +
         '<div class="past" data-history-panel="' + esc(bot.bot_id) + '"' + (hist ? '' : ' hidden') + '>' + past + '</div>' +
         '<div class="expand" data-panel="card" data-path="' + esc(latest.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(latest) + '</div>' +
-        '</article>';
+        '</div></article>';
     }).join('');
 
     var rows = allReports().filter(function (report) {
