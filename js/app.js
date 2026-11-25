@@ -130,7 +130,38 @@
     if (typeof parse !== 'function') return '<p>' + esc(src) + '</p>';
     var raw = parse(src, { async: false, gfm: true });
     if (typeof raw !== 'string') return '<p>' + esc(src) + '</p>';
-    return sanitize(raw);
+    return decorateMd(sanitize(raw));
+  }
+
+  function decorateMd(html) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    var kids = Array.prototype.slice.call(doc.body.childNodes);
+    var frag = doc.createDocumentFragment();
+    var i = 0;
+    var n = 0;
+    while (i < kids.length) {
+      var node = kids[i];
+      if (node.nodeType === 1 && node.tagName === 'H2') {
+        var title = (node.textContent || '').replace(/\s+/g, '');
+        node.id = 's' + (++n);
+        var section = doc.createElement('section');
+        if (title.indexOf('摘要') === 0) section.className = 'tldr';
+        else if (title.indexOf('结论') === 0) section.className = 'verdict';
+        section.appendChild(node);
+        i += 1;
+        while (i < kids.length && !(kids[i].nodeType === 1 && kids[i].tagName === 'H2')) {
+          section.appendChild(kids[i]);
+          i += 1;
+        }
+        frag.appendChild(section);
+      } else {
+        frag.appendChild(node);
+        i += 1;
+      }
+    }
+    doc.body.innerHTML = '';
+    doc.body.appendChild(frag);
+    return doc.body.innerHTML;
   }
 
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -283,7 +314,9 @@
   }
 
   function detailHtml(report) {
-    return flowHtml(report) + '<div class="md">' + mdHtml(report.body) + '</div>' + citesHtml(report.sources);
+    var flow = flowHtml(report);
+    var cls = 'expand-layout' + (flow ? ' has-flow' : '');
+    return '<div class="' + cls + '">' + flow + '<div class="md">' + mdHtml(report.body) + '</div>' + citesHtml(report.sources) + '</div>';
   }
 
   function markHtml(status) {
@@ -399,7 +432,7 @@
           '<span class="sum">' + esc(report.summary) + '</span></button>' +
           '<div class="expand" data-panel="past" data-path="' + esc(report.path) + '"' + (rowOpen ? '' : ' hidden') + '>' + detailHtml(report) + '</div></div>';
       }).join('');
-      return '<article class="card sync-' + sync.level + cardNew + picked + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
+      return '<article class="card sync-' + sync.level + cardNew + picked + (open ? ' is-open' : '') + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
         '<div class="accent"></div>' +
         sparkline(values) +
         '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + statusDot(sync) + '</div>' +
@@ -480,11 +513,10 @@ function kpi(label, value, delta) {
       if (el.getAttribute('data-path') !== path) return;
       el.setAttribute('aria-expanded', on ? 'true' : 'false');
     });
-    if (kind === 'card') {
-      document.querySelectorAll('[data-card]').forEach(function (card) {
-        if (card.getAttribute('data-path') === path) card.setAttribute('data-open', on ? 'true' : 'false');
-      });
-    }
+    document.querySelectorAll('.card').forEach(function (card) {
+      var open = card.querySelector('.expand:not([hidden])');
+      card.classList.toggle('is-open', !!open);
+    });
   }
 
   function onClick(event) {

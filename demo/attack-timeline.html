@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#E3EAF3">
+  <title>Crew</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .demo-page { max-width: 1120px; margin: 0 auto; padding: 24px; }
+    .demo-page h1 { font-family: var(--serif); font-weight: 600; font-size: 1.6rem; margin: 0 0 8px; }
+    .demo-switch { margin: 0 0 18px; font-size: 13px; }
+    .demo-switch a { color: var(--muted); margin-right: 14px; }
+    .md-before .tldr, .md-before .verdict { background: transparent; border: 0; padding: 0; border-radius: 0; }
+    .md-before h2, .md-before h3 { font-family: var(--sans); font-weight: 600; }
+    .md-before h2 { font-size: 1rem; margin: 1em 0 0.3em; }
+    .md-before blockquote { background: transparent; padding: 0 0 0 10px; }
+    .md-before table { font-size: 13px; }
+    .md-before th { background: transparent; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Crew</h1>
+      <div class="lock-wrap" id="lock-wrap">
+        <button type="button" id="lock-btn" class="lock" aria-label="进入" aria-expanded="false">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <rect x="3.2" y="7" width="9.6" height="7" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M5.2 7V5.1a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          </svg>
+        </button>
+        <form id="gate-form" class="popover" hidden>
+          <input id="gate-input" type="password" inputmode="numeric" autocomplete="current-password" aria-label="进入" spellcheck="false">
+          <p id="gate-error" class="gate-error">未通过</p>
+          <button type="submit" class="sr">进入</button>
+        </form>
+      </div>
+    </div>
+  </header>
+  <main class="demo-page" id="locked-shell">
+    <div class="sk sk-bar"></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-row"></div>
+  </main>
+  <main class="demo-page" id="doc" hidden></main>
+  <script src="../vendor/marked.min.js"></script>
+  <script src="../config/site.js"></script>
+  <script>
+    (function () {
+      var KEY = 'crew-pulse-auth';
+      var before = new URLSearchParams(location.search).get('style') === 'before';
+      var form = document.getElementById('gate-form');
+      var input = document.getElementById('gate-input');
+      var err = document.getElementById('gate-error');
+      var btn = document.getElementById('lock-btn');
+      var wrap = document.getElementById('lock-wrap');
+      function sha256(text) {
+        return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
+          return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+        });
+      }
+      function setPopover(open) {
+        if (sessionStorage.getItem(KEY) === '1') open = false;
+        form.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) input.focus();
+      }
+      function decorate(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var kids = Array.prototype.slice.call(doc.body.childNodes);
+        var frag = doc.createDocumentFragment();
+        var i = 0, n = 0;
+        while (i < kids.length) {
+          var node = kids[i];
+          if (node.nodeType === 1 && node.tagName === 'H2') {
+            var title = (node.textContent || '').replace(/\s+/g, '');
+            node.id = 's' + (++n);
+            var section = doc.createElement('section');
+            if (!before && title.indexOf('摘要') === 0) section.className = 'tldr';
+            else if (!before && title.indexOf('结论') === 0) section.className = 'verdict';
+            section.appendChild(node);
+            i += 1;
+            while (i < kids.length && !(kids[i].nodeType === 1 && kids[i].tagName === 'H2')) {
+              section.appendChild(kids[i]);
+              i += 1;
+            }
+            frag.appendChild(section);
+          } else {
+            frag.appendChild(node);
+            i += 1;
+          }
+        }
+        doc.body.innerHTML = '';
+        doc.body.appendChild(frag);
+        return doc.body.innerHTML;
+      }
+      function show() {
+        document.documentElement.classList.add('unlocked');
+        fetch('attack-timeline.md?t=' + Date.now()).then(function (res) { return res.text(); }).then(function (md) {
+          var parse = window.marked.parse || window.marked;
+          var html = decorate(parse(md, { async: false, gfm: true }));
+          var root = document.getElementById('doc');
+          var other = before ? 'attack-timeline.html' : 'attack-timeline.html?style=before';
+          var otherLabel = before ? '分段' : '条目';
+          root.innerHTML = '<h1>机场与关键网络中断</h1><p class="demo-switch"><a href="' + other + '">' + otherLabel + '</a></p><article class="md' + (before ? ' md-before' : '') + '">' + html + '</article>';
+          root.hidden = false;
+          document.getElementById('locked-shell').hidden = true;
+        });
+      }
+      btn.addEventListener('click', function () { setPopover(form.hidden); });
+      wrap.addEventListener('click', function (e) { e.stopPropagation(); });
+      document.addEventListener('click', function () { setPopover(false); });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var expected = String((window.CREW_SITE && window.CREW_SITE.PASSWORD_HASH) || '').toLowerCase();
+        sha256(input.value).then(function (actual) {
+          if (actual !== expected) {
+            err.classList.add('is-shown');
+            input.value = '';
+            input.focus();
+            return;
+          }
+          sessionStorage.setItem(KEY, '1');
+          setPopover(false);
+          show();
+        });
+      });
+      if (sessionStorage.getItem(KEY) === '1') show();
+    })();
+  </script>
+</body>
+</html>

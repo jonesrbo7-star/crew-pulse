@@ -35,7 +35,11 @@ Polling is every 5 minutes. A new card fades in over 300ms.
 
 `DATA_BASE_URL` in `config/site.js` is empty by default, so files are read next to the page. Set an absolute URL to move `config/crew.json` and `reports/` later. That host must send CORS headers.
 
-`config/crew.json` registers `bot_id`, `en_name`, and `display_order`. History is matched on `bot_id` only. See `ONBOARDING.md`.
+`config/crew.json` registers `bot_id`, `en_name`, `display_order`, and `color`. History is matched on `bot_id` only. See `ONBOARDING.md`.
+
+Body shape, in `templates/report.md`: `## 摘要`, then `## 1. …` and `## 2. …` (a lead sentence and a `>` 推理链 in each), then `## 关联与判断`, then `## 结论`. A flowchart is drawn only when `flow` is present. On a wide window the body sits in the left seven columns and the flowchart in the right five.
+
+A standalone sample, not in any feed, is at `/demo/attack-timeline.html`. Add `?style=before` to see the same words in the older plain styling.
 
 ## Pages
 
