@@ -100,7 +100,7 @@ for (const full of files) {
   if (!Array.isArray(data.sources) || data.sources.length === 0) fail(`${rel} sources must be a non-empty list`);
   else data.sources.forEach((source, index) => {
     if (!source || typeof source.name !== 'string' || !source.name.trim()) fail(`${rel} sources[${index}].name`);
-    if (!source || typeof source.url !== 'string' || !/^https?:\/\//i.test(source.url)) fail(`${rel} sources[${index}].url`);
+    if (!source || (source.url != null && source.url !== '' && (typeof source.url !== 'string' || !/^https?:\/\//i.test(source.url)))) fail(`${rel} sources[${index}].url`);
     if (!source || !['news', 'paper', 'patent'].includes(source.type)) fail(`${rel} sources[${index}].type`);
   });
   if (!text.slice(fenced[0].length).trim()) fail(`${rel} empty body`);

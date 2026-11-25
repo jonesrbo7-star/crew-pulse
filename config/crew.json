@@ -4,15 +4,55 @@
       "bot_id": "bot-01",
       "en_name": "Ivo",
       "folder": "ivo",
+      "order": 1,
       "display_order": 1,
-      "color": "#163E7A"
+      "color": "#163E7A",
+      "role": "每日全局信号"
     },
     {
       "bot_id": "bot-02",
       "en_name": "Johnson",
       "folder": "johnson",
+      "order": 2,
       "display_order": 2,
-      "color": "#6E87A6"
+      "color": "#6E87A6",
+      "role": "AI概念寓言"
+    },
+    {
+      "bot_id": "bot-03",
+      "en_name": "John",
+      "folder": "john",
+      "order": 3,
+      "display_order": 3,
+      "color": "#27579B",
+      "role": "X信源动态汇总"
+    },
+    {
+      "bot_id": "bot-04",
+      "en_name": "Marcus",
+      "folder": "marcus",
+      "order": 4,
+      "display_order": 4,
+      "color": "#3B6E8C",
+      "role": "数字产品机会"
+    },
+    {
+      "bot_id": "bot-05",
+      "en_name": "Elena",
+      "folder": "elena",
+      "order": 5,
+      "display_order": 5,
+      "color": "#54789E",
+      "role": "商业机会雷达"
+    },
+    {
+      "bot_id": "bot-06",
+      "en_name": "Theo",
+      "folder": "theo",
+      "order": 6,
+      "display_order": 6,
+      "color": "#1E4D6B",
+      "role": "前瞻推演预测"
     }
   ]
 }
