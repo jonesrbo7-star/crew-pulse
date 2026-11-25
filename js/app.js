@@ -101,6 +101,7 @@
       signal_strength: strength,
       sources: Array.isArray(data.sources) ? data.sources : [],
       flow: flow,
+      style: data.style === 'fable' ? 'fable' : '',
       body: match[2].trim()
     };
   }
@@ -125,15 +126,15 @@
     return doc.body.innerHTML;
   }
 
-  function mdHtml(src) {
+  function mdHtml(src, style) {
     var parse = window.marked && (window.marked.parse || window.marked);
     if (typeof parse !== 'function') return '<p>' + esc(src) + '</p>';
     var raw = parse(src, { async: false, gfm: true });
     if (typeof raw !== 'string') return '<p>' + esc(src) + '</p>';
-    return decorateMd(sanitize(raw));
+    return decorateMd(sanitize(raw), style);
   }
 
-  function decorateMd(html) {
+  function decorateMd(html, style) {
     var doc = new DOMParser().parseFromString(html, 'text/html');
     var kids = Array.prototype.slice.call(doc.body.childNodes);
     var frag = doc.createDocumentFragment();
@@ -145,7 +146,9 @@
         var title = (node.textContent || '').replace(/\s+/g, '');
         node.id = 's' + (++n);
         var section = doc.createElement('section');
-        if (title.indexOf('摘要') === 0) section.className = 'tldr';
+        if (style === 'fable' && title.indexOf('先看要点') === 0) section.className = 'tldr';
+        else if (style === 'fable' && (title.indexOf('把握与缺口') === 0 || title.indexOf('下一步') === 0)) section.className = 'verdict';
+        else if (title.indexOf('摘要') === 0) section.className = 'tldr';
         else if (title.indexOf('结论') === 0) section.className = 'verdict';
         section.appendChild(node);
         i += 1;
@@ -162,7 +165,81 @@
     doc.body.innerHTML = '';
     doc.body.appendChild(frag);
     softenMd(doc);
+    quietTables(doc);
+    if (style === 'fable') fableMd(doc);
     return doc.body.innerHTML;
+  }
+
+  function quietTables(doc) {
+    Array.prototype.forEach.call(doc.body.querySelectorAll('table'), function (table) {
+      if (table.parentElement && table.parentElement.classList.contains('table-wrap')) return;
+      var wrap = doc.createElement('div');
+      wrap.className = 'table-wrap';
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    });
+  }
+
+  function fableMd(doc) {
+    var kids = Array.prototype.slice.call(doc.body.children);
+    var i = 0;
+    while (i < kids.length) {
+      var node = kids[i];
+      if (node.classList && node.classList.contains('verdict')) {
+        var wrap = doc.createElement('div');
+        wrap.className = 'verdict';
+        node.classList.remove('verdict');
+        doc.body.insertBefore(wrap, node);
+        wrap.appendChild(node);
+        while (kids[i + 1] && kids[i + 1].classList && kids[i + 1].classList.contains('verdict')) {
+          kids[i + 1].classList.remove('verdict');
+          wrap.appendChild(kids[i + 1]);
+          i += 1;
+        }
+      }
+      i += 1;
+    }
+    Array.prototype.forEach.call(doc.body.querySelectorAll('section'), function (sec) {
+      var heading = sec.querySelector('h2');
+      var title = heading ? (heading.textContent || '').replace(/\s+/g, '') : '';
+      if (title.indexOf('来源') !== 0) return;
+      var ol = sec.querySelector('ol');
+      if (!ol) return;
+      ol.classList.add('sources');
+      var n = 0;
+      Array.prototype.forEach.call(ol.children, function (li) {
+        if (li.tagName !== 'LI') return;
+        n += 1;
+        li.id = 'src-' + n;
+      });
+    });
+    var texts = [];
+    var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    while (walker.nextNode()) texts.push(walker.currentNode);
+    texts.forEach(function (node) {
+      if (!/\[\d+\]/.test(node.textContent || '')) return;
+      var parent = node.parentElement;
+      if (!parent || parent.closest('a, ol.sources, pre, code')) return;
+      var section = parent.closest('section');
+      var heading = section && section.querySelector('h2');
+      if (heading && (heading.textContent || '').replace(/\s+/g, '').indexOf('来源') === 0) return;
+      var frag = doc.createDocumentFragment();
+      var rest = node.textContent;
+      var re = /\[(\d+)\]/g;
+      var last = 0;
+      var match;
+      while ((match = re.exec(rest))) {
+        if (match.index > last) frag.appendChild(doc.createTextNode(rest.slice(last, match.index)));
+        var link = doc.createElement('a');
+        link.className = 'cite';
+        link.setAttribute('href', '#src-' + match[1]);
+        link.textContent = match[1];
+        frag.appendChild(link);
+        last = match.index + match[0].length;
+      }
+      if (last < rest.length) frag.appendChild(doc.createTextNode(rest.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
   }
 
   function softenMd(doc) {
@@ -377,7 +454,7 @@
 
   function detailHtml(report, withSources) {
     var sources = withSources ? pillsHtml(report.sources) : '';
-    return '<div class="expand-layout"><div class="md">' + mdHtml(report.body) + '</div>' + sources + '</div>';
+    return '<div class="expand-layout"><div class="md">' + mdHtml(report.body, report.style) + '</div>' + sources + '</div>';
   }
 
   function botById(id) {

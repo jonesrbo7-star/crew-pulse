@@ -91,6 +91,7 @@ for (const full of files) {
     const strength = Number(data.signal_strength);
     if (!Number.isFinite(strength) || strength < 0 || strength > 100) fail(`${rel} signal_strength out of 0–100`);
   }
+  if (data.style != null && data.style !== 'fable') fail(`${rel} style must be fable or omitted`);
   if (data.flow != null) {
     if (!Array.isArray(data.flow)) fail(`${rel} flow must be a list`);
     else data.flow.forEach((step, index) => {

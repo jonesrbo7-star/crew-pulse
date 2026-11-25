@@ -39,6 +39,8 @@ Polling is every 5 minutes. A new card fades in over 300ms.
 
 Body shape, in `templates/report.md`: `## 摘要`, then `## 1. …` and `## 2. …` (a lead sentence and a `>` 推理链 in each), then `## 关联与判断`, then `## 结论`. `flow` may stay in the file; the page does not draw it. An expanded brief is one column.
 
+An optional second shape is `style: fable` in the frontmatter, with the outline in `templates/report-template-fable.md`. That shape opens with 先看要点, answers in sub-questions, and closes with 把握与缺口. Inline `[1]` marks jump to the numbered 来源 list. Notes on the shape are in `docs/fable/`.
+
 A standalone sample, not in any feed, is at `/demo/attack-timeline.html`. Add `?style=before` to see the earlier wording in the older plain styling.
 
 ## Pages
