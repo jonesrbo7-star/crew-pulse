@@ -1,35 +1,135 @@
 {
-  "generated_at": "2026-11-25T15:03:22.301Z",
+  "generated_at": "2026-11-25T16:06:50.929707Z",
   "reports": [
     {
-      "path": "reports/johnson/2026-11-25-1115.md",
+      "path": "reports/theo/2026-11-24-2040.md",
+      "folder": "theo",
+      "file": "2026-11-24-2040.md"
+    },
+    {
+      "path": "reports/theo/2026-11-23-2038.md",
+      "folder": "theo",
+      "file": "2026-11-23-2038.md"
+    },
+    {
+      "path": "reports/theo/2026-11-22-2037.md",
+      "folder": "theo",
+      "file": "2026-11-22-2037.md"
+    },
+    {
+      "path": "reports/theo/2026-11-21-2109.md",
+      "folder": "theo",
+      "file": "2026-11-21-2109.md"
+    },
+    {
+      "path": "reports/theo/2026-11-21-0937.md",
+      "folder": "theo",
+      "file": "2026-11-21-0937.md"
+    },
+    {
+      "path": "reports/marcus/2026-11-25-0758.md",
+      "folder": "marcus",
+      "file": "2026-11-25-0758.md"
+    },
+    {
+      "path": "reports/marcus/2026-11-24-0640.md",
+      "folder": "marcus",
+      "file": "2026-11-24-0640.md"
+    },
+    {
+      "path": "reports/johnson/2026-11-24-1905.md",
       "folder": "johnson",
-      "file": "2026-11-25-1115.md"
+      "file": "2026-11-24-1905.md"
     },
     {
-      "path": "reports/johnson/2026-11-24-2100.md",
+      "path": "reports/johnson/2026-11-23-1900.md",
       "folder": "johnson",
-      "file": "2026-11-24-2100.md"
+      "file": "2026-11-23-1900.md"
     },
     {
-      "path": "reports/johnson/2026-11-23-2100.md",
+      "path": "reports/johnson/2026-11-22-1907.md",
       "folder": "johnson",
-      "file": "2026-11-23-2100.md"
+      "file": "2026-11-22-1907.md"
     },
     {
-      "path": "reports/ivo/2026-11-25-0740.md",
-      "folder": "ivo",
-      "file": "2026-11-25-0740.md"
+      "path": "reports/johnson/2026-11-21-1910.md",
+      "folder": "johnson",
+      "file": "2026-11-21-1910.md"
     },
     {
-      "path": "reports/ivo/2026-11-23-0730.md",
-      "folder": "ivo",
-      "file": "2026-11-23-0730.md"
+      "path": "reports/johnson/2026-11-20-1858.md",
+      "folder": "johnson",
+      "file": "2026-11-20-1858.md"
     },
     {
-      "path": "reports/ivo/2026-11-22-0730.md",
+      "path": "reports/john/2026-11-25-0657.md",
+      "folder": "john",
+      "file": "2026-11-25-0657.md"
+    },
+    {
+      "path": "reports/john/2026-11-24-1857.md",
+      "folder": "john",
+      "file": "2026-11-24-1857.md"
+    },
+    {
+      "path": "reports/john/2026-11-24-0658.md",
+      "folder": "john",
+      "file": "2026-11-24-0658.md"
+    },
+    {
+      "path": "reports/john/2026-11-23-1856.md",
+      "folder": "john",
+      "file": "2026-11-23-1856.md"
+    },
+    {
+      "path": "reports/john/2026-11-23-0659.md",
+      "folder": "john",
+      "file": "2026-11-23-0659.md"
+    },
+    {
+      "path": "reports/ivo/2026-11-24-2023.md",
       "folder": "ivo",
-      "file": "2026-11-22-0730.md"
+      "file": "2026-11-24-2023.md"
+    },
+    {
+      "path": "reports/ivo/2026-11-23-1950.md",
+      "folder": "ivo",
+      "file": "2026-11-23-1950.md"
+    },
+    {
+      "path": "reports/ivo/2026-11-22-1953.md",
+      "folder": "ivo",
+      "file": "2026-11-22-1953.md"
+    },
+    {
+      "path": "reports/ivo/2026-11-21-1946.md",
+      "folder": "ivo",
+      "file": "2026-11-21-1946.md"
+    },
+    {
+      "path": "reports/ivo/2026-11-21-0937.md",
+      "folder": "ivo",
+      "file": "2026-11-21-0937.md"
+    },
+    {
+      "path": "reports/elena/2026-11-24-0552.md",
+      "folder": "elena",
+      "file": "2026-11-24-0552.md"
+    },
+    {
+      "path": "reports/elena/2026-11-24-0551.md",
+      "folder": "elena",
+      "file": "2026-11-24-0551.md"
+    },
+    {
+      "path": "reports/elena/2026-11-24-0545.md",
+      "folder": "elena",
+      "file": "2026-11-24-0545.md"
+    },
+    {
+      "path": "reports/elena/2026-11-24-0522.md",
+      "folder": "elena",
+      "file": "2026-11-24-0522.md"
     }
   ]
 }
