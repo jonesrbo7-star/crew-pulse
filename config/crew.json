@@ -4,13 +4,15 @@
       "bot_id": "bot-01",
       "en_name": "Ivo",
       "folder": "ivo",
-      "display_order": 1
+      "display_order": 1,
+      "color": "#3A6EA5"
     },
     {
       "bot_id": "bot-02",
       "en_name": "Johnson",
       "folder": "johnson",
-      "display_order": 2
+      "display_order": 2,
+      "color": "#2F7D5A"
     }
   ]
 }

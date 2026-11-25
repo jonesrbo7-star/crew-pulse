@@ -17,6 +17,7 @@
     timeOpen: new Set()
   };
   var started = false;
+  var primed = false;
   var signature = '';
 
   var app = document.getElementById('app');
@@ -207,23 +208,42 @@
     return list;
   }
 
-  function sparkline(values) {
+  function seriesPoints(values, w, h, pad) {
     var nums = values.filter(function (v) { return v != null && isFinite(v); });
-    if (!nums.length) return '';
-    var w = 160;
-    var h = 28;
-    var pad = 3;
+    if (!nums.length) return null;
     var min = Math.min.apply(null, nums);
     var max = Math.max.apply(null, nums);
     var span = Math.max(1, max - min);
     var pts = nums.map(function (v, i) {
       var x = nums.length === 1 ? w / 2 : pad + (i * (w - pad * 2)) / (nums.length - 1);
       var y = h - pad - ((v - min) / span) * (h - pad * 2);
-      return x.toFixed(1) + ',' + y.toFixed(1);
+      return { x: x, y: y };
     });
-    var last = pts[pts.length - 1].split(',');
-    return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><polyline points="' + pts.join(' ') + '" />' +
-      '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.2" /></svg>';
+    return pts;
+  }
+
+  function sparkline(values) {
+    var pts = seriesPoints(values, 160, 28, 3);
+    if (!pts) return '';
+    var line = pts.map(function (p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+    var last = pts[pts.length - 1];
+    return '<svg class="spark" viewBox="0 0 160 28" aria-hidden="true"><polyline points="' + line + '" />' +
+      '<circle cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="2.2" /></svg>';
+  }
+
+  function areaChart(values) {
+    var pts = seriesPoints(values, 320, 56, 2);
+    if (!pts) return '';
+    var line = pts.map(function (p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+    var area = '2,54 ' + line + ' 318,54';
+    return '<svg class="area" viewBox="0 0 320 56" aria-hidden="true"><polygon points="' + area + '" /><polyline points="' + line + '" /></svg>';
+  }
+
+  function accentOf(botId) {
+    var bot = null;
+    state.bots.forEach(function (item) { if (item.bot_id === botId) bot = item; });
+    var color = bot && bot.color;
+    return /^#[0-9A-Fa-f]{6}$/.test(color || '') ? color : '#5C6770';
   }
 
   function sourceType(source) {
@@ -255,7 +275,8 @@
   function flowHtml(report) {
     var steps = report.flow || [];
     if (!steps.length) return '';
-    return '<div class="flow">' + steps.map(function (step, index) {
+    var color = accentOf(report.bot_id);
+    return '<div class="flow" style="--accent:' + color + '">' + steps.map(function (step, index) {
       var node = '<div class="node"><span class="stage">' + esc(STAGE_LABEL[step.stage] || step.stage) + '</span><p>' + figs(step.text) + '</p></div>';
       return index ? '<div class="arrow" aria-hidden="true"></div>' + node : node;
     }).join('') + '</div>';
@@ -266,10 +287,10 @@
   }
 
   function dotHtml(status, sync) {
-    if (sync.level === 'down') return '<span class="dot down" aria-hidden="true"></span>';
-    if (sync.level === 'warn') return '<span class="dot warn" aria-hidden="true"></span>';
-    var glow = status === 'ok' ? ' glow' : '';
-    return '<span class="dot ' + status + glow + '" aria-hidden="true"></span>';
+    var level = sync && sync.level;
+    if (level === 'down' || status === 'down') return '<span class="dot down" aria-hidden="true"></span>';
+    if (level === 'warn' || status === 'warn') return '<span class="dot warn" aria-hidden="true"></span>';
+    return '<span class="dot theme glow" aria-hidden="true"></span>';
   }
 
   function trendHtml(delta) {
@@ -337,19 +358,23 @@
       return latest && latest.status === 'down';
     });
     var globalDot = document.getElementById('global-dot');
-    globalDot.className = 'dot' + (outage ? ' dim' : ' ok glow');
+    globalDot.className = 'dot ' + (sync.level === 'down' || outage ? 'down' : sync.level === 'warn' ? 'warn' : 'ok');
+    document.documentElement.classList.remove('sync-ok', 'sync-warn', 'sync-down');
+    document.documentElement.classList.add('sync-' + sync.level);
 
+    var series = allReports().slice().reverse().map(function (report) { return report.signal_strength; });
     document.getElementById('kpis').innerHTML =
       kpi('今日', stats.today, stats.todayDelta) +
       kpi('在岗', stats.active, null) +
       kpi('同步', esc(stats.sync), null) +
-      kpi('信号', stats.signal, stats.signalDelta);
+      kpi('信号', stats.signal, stats.signalDelta) +
+      '<div class="kpi-chart">' + areaChart(series) + '</div>';
 
     var nav = '<button type="button" class="nav-item' + (state.focus ? '' : ' is-on') + '" data-focus="">全部</button>' +
       state.bots.map(function (bot) {
         var latest = reportsFor(bot.bot_id)[0];
         var status = latest ? latest.status : 'down';
-        return '<button type="button" class="nav-item' + (state.focus === bot.bot_id ? ' is-on' : '') + '" data-focus="' + esc(bot.bot_id) + '">' +
+        return '<button type="button" class="nav-item' + (state.focus === bot.bot_id ? ' is-on' : '') + '" data-focus="' + esc(bot.bot_id) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
           dotHtml(status, sync) + esc(bot.en_name) + '</button>';
       }).join('');
     document.getElementById('side').innerHTML = nav;
@@ -367,14 +392,15 @@
       var values = list.slice().reverse().map(function (report) { return report.signal_strength; });
       var past = older.map(function (report) {
         var rowOpen = state.pastOpen.has(report.path);
-        return '<div><button type="button" class="line" data-toggle="past" data-path="' + esc(report.path) + '" aria-expanded="' + (rowOpen ? 'true' : 'false') + '">' +
+        return '<div style="--accent:' + accentOf(bot.bot_id) + '"><button type="button" class="line" data-toggle="past" data-path="' + esc(report.path) + '" aria-expanded="' + (rowOpen ? 'true' : 'false') + '">' +
           dotHtml(report.status, { level: 'ok' }) +
           '<span class="tag">' + esc(report.tag) + '</span>' +
           '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
           '<span class="sum">' + esc(report.summary) + '</span></button>' +
           '<div class="expand" data-panel="past" data-path="' + esc(report.path) + '"' + (rowOpen ? '' : ' hidden') + '>' + detailHtml(report) + '</div></div>';
       }).join('');
-      return '<article class="card sync-' + sync.level + cardNew + picked + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '">' +
+      return '<article class="card sync-' + sync.level + cardNew + picked + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
+        '<div class="accent"></div>' +
         sparkline(values) +
         '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + dotHtml(latest.status, sync) + '</div>' +
         '<p class="role">' + esc(latest.role || '') + '</p>' +
@@ -393,7 +419,7 @@
     document.getElementById('timeline').innerHTML = '<h3>时间线</h3>' + rows.map(function (report) {
       var open = state.timeOpen.has(report.path);
       var freshClass = fresh && fresh.has(report.path) ? ' is-new' : '';
-      return '<div class="' + freshClass.trim() + '"><button type="button" class="tl" data-toggle="time" data-path="' + esc(report.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+      return '<div class="' + freshClass.trim() + '" style="--accent:' + accentOf(report.bot_id) + '"><button type="button" class="tl" data-toggle="time" data-path="' + esc(report.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
         dotHtml(report.status, { level: 'ok' }) +
         '<span class="tag">' + esc(report.tag) + '</span>' +
         '<span class="person">' + esc(report.name) + '</span>' +
@@ -418,7 +444,9 @@ function kpi(label, value, delta) {
     if (!signature) return;
     var outage = sync.level === 'down';
     var globalDot = document.getElementById('global-dot');
-    if (globalDot) globalDot.className = 'dot' + (outage ? ' dim' : ' ok glow');
+    if (globalDot) globalDot.className = 'dot ' + (sync.level === 'down' ? 'down' : sync.level === 'warn' ? 'warn' : 'ok');
+    document.documentElement.classList.remove('sync-ok', 'sync-warn', 'sync-down');
+    document.documentElement.classList.add('sync-' + sync.level);
     var syncNode = document.getElementById('kpi-sync');
     if (syncNode) {
       var trend = syncNode.querySelector('.trend');
@@ -431,14 +459,6 @@ function kpi(label, value, delta) {
     });
     document.querySelectorAll('.summary[data-summary]').forEach(function (node) {
       node.textContent = liveSummary(node.getAttribute('data-summary'), sync);
-    });
-  }
-
-  function replayFade() {
-    document.querySelectorAll('.is-new').forEach(function (el) {
-      el.classList.remove('is-new');
-      void el.offsetWidth;
-      el.classList.add('is-new');
     });
   }
 
@@ -545,10 +565,12 @@ function kpi(label, value, delta) {
       });
     }).then(function () {
       state.lastOkAt = Date.now();
-      paint(fresh);
+      paint(primed ? fresh : new Set());
+      primed = true;
     }).catch(function (error) {
       console.warn(error);
-      paint(fresh);
+      paint(primed ? fresh : new Set());
+      primed = true;
     });
   }
 
@@ -563,6 +585,34 @@ function kpi(label, value, delta) {
 
   app.addEventListener('click', onClick);
 
+  function renderShell() {
+    document.documentElement.classList.add('ready');
+    var block = '<div class="kpi"><div class="kpi-label">今日</div><div class="sk sk-kpi"></div></div>' +
+      '<div class="kpi"><div class="kpi-label">在岗</div><div class="sk sk-kpi"></div></div>' +
+      '<div class="kpi"><div class="kpi-label">同步</div><div class="sk sk-kpi"></div></div>' +
+      '<div class="kpi"><div class="kpi-label">信号</div><div class="sk sk-kpi"></div></div>' +
+      '<div class="kpi-chart"><div class="sk" style="height:56px"></div></div>';
+    document.getElementById('kpis').innerHTML = block;
+    document.getElementById('side').innerHTML = '<div class="sk sk-nav"></div><div class="sk sk-nav"></div><div class="sk sk-nav"></div>';
+    document.getElementById('chips').innerHTML = '<span class="sk sk-chip"></span><span class="sk sk-chip"></span><span class="sk sk-chip"></span>';
+    document.getElementById('cards').innerHTML = '<div class="card sk-card"><div class="sk sk-bar"></div><div class="sk sk-bar"></div><div class="sk sk-bar"></div></div>' +
+      '<div class="card sk-card"><div class="sk sk-bar"></div><div class="sk sk-bar"></div><div class="sk sk-bar"></div></div>';
+    document.getElementById('timeline').innerHTML = '<h3>时间线</h3><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>';
+  }
+
+  function setPopover(open) {
+    if (document.documentElement.classList.contains('unlocked')) open = false;
+    gateForm.hidden = !open;
+    lockBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) gateInput.focus();
+  }
+
+  var lockBtn = document.getElementById('lock-btn');
+  var lockWrap = document.getElementById('lock-wrap');
+  lockBtn.addEventListener('click', function () { setPopover(gateForm.hidden); });
+  lockWrap.addEventListener('click', function (event) { event.stopPropagation(); });
+  document.addEventListener('click', function () { setPopover(false); });
+
   gateForm.addEventListener('submit', function (event) {
     event.preventDefault();
     passwordOk(gateInput.value).then(function (ok) {
@@ -574,18 +624,14 @@ function kpi(label, value, delta) {
       }
       gateError.classList.remove('is-shown');
       try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
-      start().then(function () {
-        document.documentElement.classList.add('unlocked');
-        replayFade();
-      });
+      document.documentElement.classList.add('unlocked');
+      setPopover(false);
+      start();
     }).catch(function () {
       gateError.classList.add('is-shown');
     });
   });
 
-  if (document.documentElement.classList.contains('unlocked')) {
-    start().then(replayFade);
-  } else if (gateInput) {
-    gateInput.focus();
-  }
+  renderShell();
+  if (document.documentElement.classList.contains('unlocked')) start();
 })();

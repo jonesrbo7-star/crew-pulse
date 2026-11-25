@@ -6,7 +6,7 @@ Live site: <https://jonesrbo7-star.github.io/crew-pulse/>
 
 ## Soft gate
 
-The page compares SHA-256 of the input with `PASSWORD_HASH` in `config/site.js` and remembers the unlock in `sessionStorage`.
+A lock in the header opens a small field. The page compares SHA-256 of the input with `PASSWORD_HASH` in `config/site.js` and remembers the unlock in `sessionStorage`. Report files are fetched only after that unlock.
 
 This is not access control. The repository is public, and so are the files.
 
