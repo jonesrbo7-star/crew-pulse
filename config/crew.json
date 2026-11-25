@@ -5,14 +5,14 @@
       "en_name": "Ivo",
       "folder": "ivo",
       "display_order": 1,
-      "color": "#3A6EA5"
+      "color": "#163E7A"
     },
     {
       "bot_id": "bot-02",
       "en_name": "Johnson",
       "folder": "johnson",
       "display_order": 2,
-      "color": "#2F7D5A"
+      "color": "#6E87A6"
     }
   ]
 }

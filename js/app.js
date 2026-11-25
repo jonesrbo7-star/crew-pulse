@@ -286,11 +286,15 @@
     return flowHtml(report) + '<div class="md">' + mdHtml(report.body) + '</div>' + citesHtml(report.sources);
   }
 
-  function dotHtml(status, sync) {
+  function markHtml() {
+    return '<span class="mark" aria-hidden="true"></span>';
+  }
+
+  function statusDot(sync) {
     var level = sync && sync.level;
-    if (level === 'down' || status === 'down') return '<span class="dot down" aria-hidden="true"></span>';
-    if (level === 'warn' || status === 'warn') return '<span class="dot warn" aria-hidden="true"></span>';
-    return '<span class="dot theme glow" aria-hidden="true"></span>';
+    if (level === 'down') return '<span class="dot hollow" aria-hidden="true"></span>';
+    if (level === 'warn') return '<span class="dot warn" aria-hidden="true"></span>';
+    return '<span class="dot iron glow" aria-hidden="true"></span>';
   }
 
   function trendHtml(delta) {
@@ -353,12 +357,8 @@
     signature = next;
     var sync = syncState();
     var stats = metrics(sync);
-    var outage = sync.level === 'down' || state.bots.some(function (bot) {
-      var latest = reportsFor(bot.bot_id)[0];
-      return latest && latest.status === 'down';
-    });
     var globalDot = document.getElementById('global-dot');
-    globalDot.className = 'dot ' + (sync.level === 'down' || outage ? 'down' : sync.level === 'warn' ? 'warn' : 'ok');
+    globalDot.className = 'dot ' + (sync.level === 'down' ? 'hollow' : sync.level === 'warn' ? 'warn' : 'iron glow');
     document.documentElement.classList.remove('sync-ok', 'sync-warn', 'sync-down');
     document.documentElement.classList.add('sync-' + sync.level);
 
@@ -372,10 +372,8 @@
 
     var nav = '<button type="button" class="nav-item' + (state.focus ? '' : ' is-on') + '" data-focus="">全部</button>' +
       state.bots.map(function (bot) {
-        var latest = reportsFor(bot.bot_id)[0];
-        var status = latest ? latest.status : 'down';
         return '<button type="button" class="nav-item' + (state.focus === bot.bot_id ? ' is-on' : '') + '" data-focus="' + esc(bot.bot_id) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
-          dotHtml(status, sync) + esc(bot.en_name) + '</button>';
+          markHtml() + esc(bot.en_name) + '</button>';
       }).join('');
     document.getElementById('side').innerHTML = nav;
     document.getElementById('chips').innerHTML = nav.replace(/nav-item/g, 'chip');
@@ -393,7 +391,7 @@
       var past = older.map(function (report) {
         var rowOpen = state.pastOpen.has(report.path);
         return '<div style="--accent:' + accentOf(bot.bot_id) + '"><button type="button" class="line" data-toggle="past" data-path="' + esc(report.path) + '" aria-expanded="' + (rowOpen ? 'true' : 'false') + '">' +
-          dotHtml(report.status, { level: 'ok' }) +
+          markHtml() +
           '<span class="tag">' + esc(report.tag) + '</span>' +
           '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
           '<span class="sum">' + esc(report.summary) + '</span></button>' +
@@ -402,7 +400,7 @@
       return '<article class="card sync-' + sync.level + cardNew + picked + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
         '<div class="accent"></div>' +
         sparkline(values) +
-        '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + dotHtml(latest.status, sync) + '</div>' +
+        '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + statusDot(sync) + '</div>' +
         '<p class="role">' + esc(latest.role || '') + '</p>' +
         '<p class="when">' + esc(formatReportTime(latest.timestamp)) + '</p>' +
         '<p class="summary" data-summary="' + esc(latest.summary) + '">' + esc(liveSummary(latest.summary, sync)) + '</p>' +
@@ -420,7 +418,7 @@
       var open = state.timeOpen.has(report.path);
       var freshClass = fresh && fresh.has(report.path) ? ' is-new' : '';
       return '<div class="' + freshClass.trim() + '" style="--accent:' + accentOf(report.bot_id) + '"><button type="button" class="tl" data-toggle="time" data-path="' + esc(report.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
-        dotHtml(report.status, { level: 'ok' }) +
+        markHtml() +
         '<span class="tag">' + esc(report.tag) + '</span>' +
         '<span class="person">' + esc(report.name) + '</span>' +
         '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
@@ -442,9 +440,8 @@ function kpi(label, value, delta) {
   function paintSync() {
     var sync = syncState();
     if (!signature) return;
-    var outage = sync.level === 'down';
     var globalDot = document.getElementById('global-dot');
-    if (globalDot) globalDot.className = 'dot ' + (sync.level === 'down' ? 'down' : sync.level === 'warn' ? 'warn' : 'ok');
+    if (globalDot) globalDot.className = 'dot ' + (sync.level === 'down' ? 'hollow' : sync.level === 'warn' ? 'warn' : 'iron glow');
     document.documentElement.classList.remove('sync-ok', 'sync-warn', 'sync-down');
     document.documentElement.classList.add('sync-' + sync.level);
     var syncNode = document.getElementById('kpi-sync');
