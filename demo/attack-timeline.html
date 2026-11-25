@@ -21,6 +21,134 @@
     .md-before blockquote { background: transparent; padding: 0 0 0 10px; }
     .md-before table { font-size: 13px; }
     .md-before th { background: transparent; }
+    .md-arch { max-width: 760px; }
+    .md-arch .lead {
+      margin: 14px 0 12px;
+      padding: 1px 0 1px 14px;
+      border-left: 3px solid #163E7A;
+      font-size: 1.2rem;
+      line-height: 1.65;
+      font-weight: 600;
+    }
+    .md-arch .lead strong { font-size: 1em; font-weight: 600; letter-spacing: -0.01em; }
+    .md-arch .roadmap {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .md-arch .roadmap p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .md-arch > section { margin-top: 44px; }
+    .md-arch h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin: 0 0 14px;
+      font-size: 1.22rem;
+      scroll-margin-top: 18px;
+    }
+    .md-arch h2 .num {
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.45em;
+      height: 1.45em;
+      padding: 0 0.15em;
+      border-radius: 999px;
+      background: #E6EEF6;
+      color: #163E7A;
+      font-family: var(--sans);
+      font-size: 0.78em;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      flex: none;
+    }
+    .md-arch .sec-lead {
+      margin: 0 0 14px;
+      font-size: 17px;
+      line-height: 1.7;
+      font-weight: 500;
+    }
+    .md-arch > section > p { margin: 0 0 14px; }
+    .md-arch > section > :last-child { margin-bottom: 0; }
+    .md-arch ul, .md-arch ol { margin: 0 0 14px; }
+    .md-arch li + li { margin-top: 12px; }
+    .md-arch .table-scroll { width: 100%; margin: 0 0 14px; overflow-x: auto; }
+    .md-arch table { width: 100%; margin: 0; }
+    .md-arch th, .md-arch td { padding: 10px 12px; }
+    .md-arch th:nth-child(1), .md-arch td:nth-child(1) { width: 24%; }
+    .md-arch th:nth-child(3), .md-arch td:nth-child(3) { width: 28%; }
+    .md-arch .step {
+      position: relative;
+      margin: 2px 0 0;
+      padding: 8px 0 0 18px;
+      font-size: 15.5px;
+      font-weight: 600;
+      line-height: 1.65;
+    }
+    .md-arch .step::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: #163E7A;
+      font-weight: 500;
+    }
+    .md-arch .step strong { font-size: 1em; }
+    .md-arch li .conf { font-size: 15px; font-weight: 500; letter-spacing: 0; }
+    .md-arch .lvl {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 0 7px;
+      border-radius: 999px;
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.7;
+      letter-spacing: 0.04em;
+      vertical-align: 1px;
+    }
+    .md-arch .lvl.high { color: #163E7A; background: #E6EEF6; }
+    .md-arch .lvl.mid { color: #7A6232; background: #F6F1E6; }
+    .md-arch .verdict {
+      max-width: none;
+      margin-top: 48px;
+      padding: 12px 16px 14px 14px;
+      border: 0;
+      border-left: 3px solid #163E7A;
+      border-radius: 0 10px 10px 0;
+      background: #F3F6FB;
+    }
+    .md-arch .verdict h2 { margin: 0 0 10px; font-size: 1.05rem; }
+    .md-arch .verdict p { margin: 0; font-size: 1.12rem; line-height: 1.65; font-weight: 600; }
+    .md-arch .verdict strong { font-size: 1em; font-weight: 600; letter-spacing: -0.01em; }
+    .toc { display: none; }
+    @media (max-width: 640px) {
+      .md-arch table { min-width: 560px; font-size: 13px; }
+    }
+    @media (min-width: 1200px) {
+      .demo-arch {
+        display: grid;
+        grid-template-columns: 140px minmax(0, 760px);
+        justify-content: center;
+        column-gap: 36px;
+        align-items: start;
+        max-width: 980px;
+      }
+      .demo-arch .toc {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        position: sticky;
+        top: 18px;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .demo-arch .toc a { color: var(--muted); text-decoration: none; }
+      .demo-arch .toc a:hover { color: #163E7A; }
+      .demo-arch .md { max-width: none; }
+    }
   </style>
 </head>
 <body>
@@ -98,17 +226,91 @@
         }
         doc.body.innerHTML = '';
         doc.body.appendChild(frag);
+        if (!before) shape(doc);
         return doc.body.innerHTML;
+      }
+      function shape(doc) {
+        var lead = doc.body.querySelector('p strong');
+        if (lead && lead.parentElement && lead.parentElement.tagName === 'P') lead.parentElement.classList.add('lead');
+        var road = doc.body.querySelector('blockquote');
+        if (road) road.classList.add('roadmap');
+        Array.prototype.forEach.call(doc.body.querySelectorAll('section'), function (sec) {
+          var h2 = sec.querySelector('h2');
+          if (!h2) return;
+          var raw = h2.textContent || '';
+          var m = raw.match(/^(\d+)\.\s*(.*)$/);
+          if (m) {
+            h2.textContent = '';
+            var num = doc.createElement('span');
+            num.className = 'num';
+            num.textContent = m[1];
+            var ht = doc.createElement('span');
+            ht.className = 'ht';
+            ht.textContent = m[2];
+            h2.appendChild(num);
+            h2.appendChild(ht);
+            sec.classList.add('block');
+          }
+          var paras = sec.querySelectorAll('p');
+          if (paras[0] && !sec.classList.contains('verdict')) paras[0].classList.add('sec-lead');
+          Array.prototype.forEach.call(paras, function (para) {
+            var t = (para.textContent || '').replace(/^\s+/, '');
+            if (/^(所以|由此可见|换句话说|因此)/.test(t)) {
+              para.classList.add('step');
+              para.classList.remove('sec-lead');
+            }
+          });
+          Array.prototype.forEach.call(sec.querySelectorAll('strong'), function (s) {
+            var st = (s.textContent || '').replace(/\s/g, '');
+            var level = st.indexOf('置信度：高') !== -1 ? 'high' : (st.indexOf('置信度：中') !== -1 ? 'mid' : '');
+            if (!level) return;
+            s.classList.add('conf');
+            s.textContent = '置信度：';
+            var tag = doc.createElement('span');
+            tag.className = 'lvl ' + level;
+            tag.textContent = level === 'high' ? '高' : '中';
+            s.appendChild(tag);
+          });
+          Array.prototype.forEach.call(sec.querySelectorAll('table'), function (table) {
+            if (table.parentElement && table.parentElement.classList.contains('table-scroll')) return;
+            var wrap = doc.createElement('div');
+            wrap.className = 'table-scroll';
+            table.parentNode.insertBefore(wrap, table);
+            wrap.appendChild(table);
+          });
+        });
       }
       function show() {
         document.documentElement.classList.add('unlocked');
-        fetch('attack-timeline.md?t=' + Date.now()).then(function (res) { return res.text(); }).then(function (md) {
+        var src = before ? 'attack-timeline.md' : 'attack-timeline-v2.md';
+        fetch(src + '?t=' + Date.now()).then(function (res) { return res.text(); }).then(function (md) {
           var parse = window.marked.parse || window.marked;
           var html = decorate(parse(md, { async: false, gfm: true }));
           var root = document.getElementById('doc');
           var other = before ? 'attack-timeline.html' : 'attack-timeline.html?style=before';
           var otherLabel = before ? '分段' : '条目';
-          root.innerHTML = '<h1>机场与关键网络中断</h1><p class="demo-switch"><a href="' + other + '">' + otherLabel + '</a></p><article class="md' + (before ? ' md-before' : '') + '">' + html + '</article>';
+          var head = before ? '<h1>机场与关键网络中断</h1>' : '';
+          root.className = 'demo-page' + (before ? '' : ' demo-arch');
+          root.innerHTML = head + '<p class="demo-switch"><a href="' + other + '">' + otherLabel + '</a></p><article class="md' + (before ? ' md-before' : ' md-arch') + '">' + html + '</article>';
+          if (!before) {
+            var nav = document.createElement('nav');
+            nav.className = 'toc';
+            nav.setAttribute('aria-label', '章节');
+            root.querySelectorAll('.md h2').forEach(function (h) {
+              var a = document.createElement('a');
+              a.href = '#' + h.id;
+              var num = h.querySelector('.num');
+              var ht = h.querySelector('.ht');
+              var label = ht ? ht.textContent.split('：')[0] : h.textContent;
+              a.textContent = num ? (num.textContent + '  ' + label) : label;
+              nav.appendChild(a);
+            });
+            var frame = document.createElement('div');
+            frame.className = 'read';
+            while (root.firstChild) frame.appendChild(root.firstChild);
+            root.appendChild(nav);
+            root.appendChild(frame);
+          }
           root.hidden = false;
           document.getElementById('locked-shell').hidden = true;
         });

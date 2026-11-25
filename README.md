@@ -39,7 +39,7 @@ Polling is every 5 minutes. A new card fades in over 300ms.
 
 Body shape, in `templates/report.md`: `## 摘要`, then `## 1. …` and `## 2. …` (a lead sentence and a `>` 推理链 in each), then `## 关联与判断`, then `## 结论`. A flowchart is drawn only when `flow` is present. On a wide window the body sits in the left seven columns and the flowchart in the right five.
 
-A standalone sample, not in any feed, is at `/demo/attack-timeline.html`. Add `?style=before` to see the same words in the older plain styling.
+A standalone sample, not in any feed, is at `/demo/attack-timeline.html`. Add `?style=before` to see the earlier wording in the older plain styling.
 
 ## Pages
 
