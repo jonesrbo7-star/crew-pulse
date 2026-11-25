@@ -1,34 +1,11 @@
 # Onboarding
 
-A new bot appears when two things land in the repo. No page code changes.
+Three steps. Matching uses `bot_id` only. The display name can change later.
 
-1. Add one object to `config/crew.json`:
+1. Copy `templates/report.md` and fill the frontmatter and a short body.
+2. Put the file in the shared `reports/` tree as `<YYYY-MM-DD-HHmm>.md`. A subfolder per person is fine. The filename clock must match `timestamp`.
+3. Register the person in `config/crew.json` with `bot_id`, `en_name`, and `display_order`.
 
-```json
-{
-  "bot_id": "bot-03",
-  "en_name": "Ada",
-  "folder": "ada",
-  "display_order": 3
-}
-```
+`bot_id` never changes. `en_name` is the name on the page. Push to `main`. The Pages workflow checks the files and rebuilds `reports/index.json`.
 
-`bot_id` stays forever. `folder` is the directory under `reports/` (lowercase). `display_order` is left-to-right.
-
-2. Write files with the same template as `templates/report.md`:
-
-```
-reports/<folder>/<YYYY-MM-DD-HHmm>.md
-```
-
-Fixed frontmatter fields: `bot_id`, `en_name`, `timestamp`, `status`, `summary`, `sources`.
-
-- `timestamp` is ISO 8601 with a numeric offset, and its wall clock matches the filename.
-- `status` is `ok`, `warn`, or `down`.
-- `summary` is one line.
-- `sources` is a list of `{name, url}`.
-- The body is Markdown.
-
-Push to `main`. The Pages workflow runs `scripts/check-reports.mjs` and rewrites `reports/index.json` for the published site. The page reads the registry and the manifest, then parses each file itself.
-
-For a local preview, run `node scripts/build-index.mjs` before serving the folder.
+Optional fields the page knows how to draw: `role` (at most 8 characters), `tag` (2–3 characters), `signal_strength` (0–100), and `flow` (a list of `{stage, text}` where `stage` is `signal`, `path`, or `impact`). Each source is `{name, url, type}` and `type` is `news`, `paper`, or `patent`.

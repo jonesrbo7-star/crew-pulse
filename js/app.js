@@ -2,18 +2,20 @@
   var POLL_MS = 5 * 60 * 1000;
   var WARN_MS = 10 * 60 * 1000;
   var DOWN_MS = 60 * 60 * 1000;
-  var UNLOCK_KEY = 'crew-pulse-unlocked';
+  var UNLOCK_KEY = 'crew-pulse-auth';
+  var STAGES = ['signal', 'path', 'impact'];
+  var STAGE_LABEL = { signal: '信号', path: '路径', impact: '影响' };
 
   var state = {
     bots: [],
     reports: new Map(),
     lastOkAt: 0,
+    focus: '',
     cardOpen: new Set(),
     histOpen: new Set(),
-    timeOpen: new Set(),
-    historyOpen: new Set()
+    pastOpen: new Set(),
+    timeOpen: new Set()
   };
-
   var started = false;
   var signature = '';
 
@@ -26,6 +28,10 @@
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
     });
+  }
+
+  function figs(text) {
+    return esc(text).replace(/(\d+(?:\.\d+)?)/g, '<b class="fig">$1</b>');
   }
 
   function pageBase() {
@@ -77,16 +83,23 @@
     var timestamp = data.timestamp instanceof Date ? data.timestamp.toISOString() : data.timestamp;
     var status = data.status;
     if (status !== 'ok' && status !== 'warn' && status !== 'down') status = 'down';
-    var parts = path.split('/');
+    var strength = Number(data.signal_strength);
+    if (!isFinite(strength)) strength = null;
+    var flow = Array.isArray(data.flow) ? data.flow.filter(function (step) {
+      return step && STAGES.indexOf(step.stage) >= 0 && step.text;
+    }) : [];
     return {
       path: path,
-      folder: parts[1] || '',
       bot_id: String(data.bot_id || ''),
       en_name: String(data.en_name || ''),
       timestamp: String(timestamp || ''),
       status: status,
       summary: String(data.summary || ''),
+      role: String(data.role || ''),
+      tag: String(data.tag || ''),
+      signal_strength: strength,
       sources: Array.isArray(data.sources) ? data.sources : [],
+      flow: flow,
       body: match[2].trim()
     };
   }
@@ -119,16 +132,7 @@
     return sanitize(raw);
   }
 
-  function sourcesHtml(sources) {
-    if (!sources || !sources.length) return '';
-    var items = sources.map(function (source) {
-      var name = esc(source && (source.name || source.url) || '');
-      var url = String(source && source.url || '');
-      if (!/^https?:\/\//i.test(url)) return '<li><span>' + name + '</span></li>';
-      return '<li><a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + name + '</a></li>';
-    }).join('');
-    return '<ul class="sources">' + items + '</ul>';
-  }
+  function pad(n) { return String(n).padStart(2, '0'); }
 
   function formatReportTime(iso) {
     var match = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
@@ -136,7 +140,21 @@
     return Number(match[2]) + '月' + Number(match[3]) + '日 ' + match[4] + ':' + match[5];
   }
 
-  function pad(n) { return String(n).padStart(2, '0'); }
+  function dayKey(iso) {
+    var match = String(iso).match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : '';
+  }
+
+  function localDay(date) {
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+  }
+
+  function shiftDay(key, delta) {
+    var parts = key.split('-');
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    date.setDate(date.getDate() + delta);
+    return localDay(date);
+  }
 
   function formatClock(ms) {
     var date = new Date(ms);
@@ -167,46 +185,142 @@
     return original || '—';
   }
 
-  function syncLabel(sync) {
-    if (sync.level === 'warn') return '等待同步 · ' + formatShort(sync.at);
-    if (sync.level === 'down') return liveSummary('', sync);
-    return sync.at ? formatShort(sync.at) : '';
-  }
+  function byTime(a, b) { return Date.parse(b.timestamp) - Date.parse(a.timestamp); }
 
-  function reportsFor(bot) {
+  function reportsFor(botId) {
     var list = [];
     state.reports.forEach(function (report) {
-      if (report.folder === bot.folder) list.push(report);
+      if (report.bot_id === botId) list.push(report);
     });
-    list.sort(function (a, b) {
-      return Date.parse(b.timestamp) - Date.parse(a.timestamp);
-    });
+    list.sort(byTime);
     return list;
   }
 
+  function allReports() {
+    var list = [];
+    state.bots.forEach(function (bot) {
+      reportsFor(bot.bot_id).forEach(function (report) {
+        list.push(Object.assign({ name: bot.en_name }, report));
+      });
+    });
+    list.sort(byTime);
+    return list;
+  }
+
+  function sparkline(values) {
+    var nums = values.filter(function (v) { return v != null && isFinite(v); });
+    if (!nums.length) return '';
+    var w = 160;
+    var h = 28;
+    var pad = 3;
+    var min = Math.min.apply(null, nums);
+    var max = Math.max.apply(null, nums);
+    var span = Math.max(1, max - min);
+    var pts = nums.map(function (v, i) {
+      var x = nums.length === 1 ? w / 2 : pad + (i * (w - pad * 2)) / (nums.length - 1);
+      var y = h - pad - ((v - min) / span) * (h - pad * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    var last = pts[pts.length - 1].split(',');
+    return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><polyline points="' + pts.join(' ') + '" />' +
+      '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.2" /></svg>';
+  }
+
+  function sourceType(source) {
+    var type = source && source.type;
+    return type === 'paper' || type === 'patent' || type === 'news' ? type : 'news';
+  }
+
+  function pillsHtml(sources) {
+    if (!sources || !sources.length) return '';
+    return '<ul class="pills">' + sources.map(function (source) {
+      var type = sourceType(source);
+      var name = esc(source.name || source.url || '');
+      var url = String(source.url || '');
+      if (!/^https?:\/\//i.test(url)) return '<li><span class="pill ' + type + '">' + name + '</span></li>';
+      return '<li><a class="pill ' + type + '" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + name + '</a></li>';
+    }).join('') + '</ul>';
+  }
+
+  function citesHtml(sources) {
+    if (!sources || !sources.length) return '';
+    return '<p class="cites">' + sources.map(function (source) {
+      var name = esc(source.name || source.url || '');
+      var url = String(source.url || '');
+      if (!/^https?:\/\//i.test(url)) return '<span>' + name + '</span>';
+      return '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + name + '</a>';
+    }).join('') + '</p>';
+  }
+
+  function flowHtml(report) {
+    var steps = report.flow || [];
+    if (!steps.length) return '';
+    return '<div class="flow">' + steps.map(function (step, index) {
+      var node = '<div class="node"><span class="stage">' + esc(STAGE_LABEL[step.stage] || step.stage) + '</span><p>' + figs(step.text) + '</p></div>';
+      return index ? '<div class="arrow" aria-hidden="true"></div>' + node : node;
+    }).join('') + '</div>';
+  }
+
+  function detailHtml(report) {
+    return flowHtml(report) + '<div class="md">' + mdHtml(report.body) + '</div>' + citesHtml(report.sources);
+  }
+
   function dotHtml(status, sync) {
-    var glow = sync.level === 'ok' ? ' glow' : '';
+    if (sync.level === 'down') return '<span class="dot down" aria-hidden="true"></span>';
+    if (sync.level === 'warn') return '<span class="dot warn" aria-hidden="true"></span>';
+    var glow = status === 'ok' ? ' glow' : '';
     return '<span class="dot ' + status + glow + '" aria-hidden="true"></span>';
   }
 
-  function isOpen(scope, path) {
-    if (scope === 'card') return state.cardOpen.has(path);
-    if (scope === 'hist') return state.histOpen.has(path);
-    return state.timeOpen.has(path);
+  function trendHtml(delta) {
+    if (delta == null || !isFinite(delta) || delta === 0) return '';
+    var arrow = delta > 0 ? '↑' : '↓';
+    return '<span class="trend">' + arrow + ' ' + Math.abs(delta) + '</span>';
   }
 
-  function markdownBlock(report, className, scope) {
-    var open = isOpen(scope, report.path);
-    return '<div class="' + className + '" data-scope="' + scope + '" data-path="' + esc(report.path) + '" data-body' + (open ? '' : ' hidden') + '>' +
-      mdHtml(report.body) + '</div>';
+  function metrics(sync) {
+    var today = localDay(new Date());
+    var yesterday = shiftDay(today, -1);
+    var todayList = [];
+    var yList = [];
+    state.reports.forEach(function (report) {
+      var day = dayKey(report.timestamp);
+      if (day === today) todayList.push(report);
+      if (day === yesterday) yList.push(report);
+    });
+    var active = state.bots.filter(function (bot) {
+      var latest = reportsFor(bot.bot_id)[0];
+      return latest && latest.status !== 'down';
+    }).length;
+    function avg(list) {
+      var nums = list.map(function (r) { return r.signal_strength; }).filter(function (n) { return n != null; });
+      if (!nums.length) return null;
+      return Math.round(nums.reduce(function (a, b) { return a + b; }, 0) / nums.length);
+    }
+    var signal = avg(state.bots.map(function (bot) { return reportsFor(bot.bot_id)[0]; }).filter(Boolean));
+    var signalDelta = null;
+    var yAvg = avg(yList);
+    var tAvg = avg(todayList);
+    if (tAvg != null && yAvg != null) signalDelta = tAvg - yAvg;
+    return {
+      today: todayList.length,
+      todayDelta: yList.length || todayList.length ? todayList.length - yList.length : null,
+      active: active,
+      sync: sync.at ? formatShort(sync.at) : '—',
+      signal: signal == null ? '—' : signal,
+      signalDelta: signalDelta
+    };
   }
 
   function currentSignature() {
     var paths = Array.from(state.reports.keys()).sort().join('|');
-    var bots = state.bots.map(function (bot) {
-      return bot.bot_id + ':' + bot.display_order + ':' + bot.en_name;
-    }).join(',');
-    return bots + '#' + paths;
+    var bots = state.bots.map(function (bot) { return bot.bot_id + ':' + bot.display_order + ':' + bot.en_name; }).join(',');
+    return bots + '#' + paths + '#' + state.focus;
+  }
+
+  function visibleBots() {
+    if (!state.focus) return state.bots;
+    return state.bots.filter(function (bot) { return bot.bot_id === state.focus; });
   }
 
   function paint(fresh) {
@@ -217,89 +331,75 @@
     }
     signature = next;
     var sync = syncState();
-    var counts = { ok: 0, warn: 0, down: 0 };
-    var dots = state.bots.map(function (bot) {
-      var latest = reportsFor(bot)[0];
-      var status = latest ? latest.status : 'down';
-      if (latest) counts[status] += 1;
-      return dotHtml(status, sync);
-    }).join('');
-
-    var top = document.getElementById('topbar');
-    top.className = 'topbar sync-' + sync.level;
-    top.innerHTML =
-      '<div class="dots">' + dots + '</div>' +
-      '<div class="counts" aria-label="正常 ' + counts.ok + '，关注 ' + counts.warn + '，中断 ' + counts.down + '">' +
-        '<span class="ok">' + counts.ok + '</span>' +
-        '<span class="warn">' + counts.warn + '</span>' +
-        '<span class="down">' + counts.down + '</span>' +
-      '</div>' +
-      '<div id="sync-label" class="sync' + (sync.level === 'down' ? ' long' : '') + '">' + esc(syncLabel(sync)) + '</div>';
-
-    var columns = state.bots.map(function (bot) {
-      var list = reportsFor(bot);
-      var latest = list[0];
-      var cardNew = latest && fresh && fresh.has(latest.path) ? ' is-new' : '';
-      var summary = latest ? latest.summary : '';
-      var body = latest ? (
-        '<div class="card-hit" data-scope="card" data-path="' + esc(latest.path) + '" data-toggle tabindex="0" role="button" aria-expanded="' + (state.cardOpen.has(latest.path) ? 'true' : 'false') + '">' +
-          '<div class="card-top">' + dotHtml(latest.status, sync) +
-            '<div><h2>' + esc(bot.en_name) + '</h2><p class="when">' + esc(formatReportTime(latest.timestamp)) + '</p></div>' +
-          '</div>' +
-          '<p class="summary" data-summary="' + esc(summary) + '">' + esc(liveSummary(summary, sync)) + '</p>' +
-        '</div>' +
-        markdownBlock(latest, 'card-body md', 'card') +
-        sourcesHtml(latest.sources)
-      ) : (
-        '<div class="card-top">' + dotHtml('down', sync) + '<div><h2>' + esc(bot.en_name) + '</h2></div></div>' +
-        '<p class="summary" data-summary="—">' + esc(liveSummary('—', sync)) + '</p>'
-      );
-
-      var historyRows = list.slice(1).map(function (report) {
-        var open = state.histOpen.has(report.path);
-        return '<div>' +
-          '<button type="button" class="line" data-scope="hist" data-path="' + esc(report.path) + '" data-toggle aria-expanded="' + (open ? 'true' : 'false') + '">' +
-            dotHtml(report.status, sync) +
-            '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
-            '<span class="sum">' + esc(report.summary) + '</span>' +
-          '</button>' +
-          '<div class="detail" data-scope="hist" data-path="' + esc(report.path) + '" data-body' + (open ? '' : ' hidden') + '>' +
-            '<div class="md">' + mdHtml(report.body) + '</div>' + sourcesHtml(report.sources) +
-          '</div></div>';
-      }).join('');
-
-      var historyOpen = state.historyOpen.has(bot.bot_id);
-      return '<article class="bot sync-' + sync.level + cardNew + '" data-bot="' + esc(bot.bot_id) + '">' +
-        '<div class="card">' + body + '</div>' +
-        '<button type="button" class="history-toggle" data-history="' + esc(bot.bot_id) + '" aria-expanded="' + (historyOpen ? 'true' : 'false') + '">查看历史</button>' +
-        '<div class="history" data-history-panel="' + esc(bot.bot_id) + '"' + (historyOpen ? '' : ' hidden') + '>' +
-          (historyRows || '') +
-        '</div></article>';
-    }).join('');
-
-    document.getElementById('board').innerHTML = columns;
-
-    var all = [];
-    state.bots.forEach(function (bot) {
-      reportsFor(bot).forEach(function (report) {
-        all.push(Object.assign({ name: bot.en_name }, report));
-      });
+    var stats = metrics(sync);
+    var outage = sync.level === 'down' || state.bots.some(function (bot) {
+      var latest = reportsFor(bot.bot_id)[0];
+      return latest && latest.status === 'down';
     });
-    all.sort(function (a, b) { return Date.parse(b.timestamp) - Date.parse(a.timestamp); });
+    var globalDot = document.getElementById('global-dot');
+    globalDot.className = 'dot' + (outage ? ' dim' : ' ok glow');
 
-    document.getElementById('timeline').innerHTML = all.map(function (report) {
+    document.getElementById('kpis').innerHTML =
+      kpi('今日', stats.today, stats.todayDelta) +
+      kpi('在岗', stats.active, null) +
+      kpi('同步', esc(stats.sync), null) +
+      kpi('信号', stats.signal, stats.signalDelta);
+
+    var nav = '<button type="button" class="nav-item' + (state.focus ? '' : ' is-on') + '" data-focus="">全部</button>' +
+      state.bots.map(function (bot) {
+        var latest = reportsFor(bot.bot_id)[0];
+        var status = latest ? latest.status : 'down';
+        return '<button type="button" class="nav-item' + (state.focus === bot.bot_id ? ' is-on' : '') + '" data-focus="' + esc(bot.bot_id) + '">' +
+          dotHtml(status, sync) + esc(bot.en_name) + '</button>';
+      }).join('');
+    document.getElementById('side').innerHTML = nav;
+    document.getElementById('chips').innerHTML = nav.replace(/nav-item/g, 'chip');
+
+    document.getElementById('cards').innerHTML = visibleBots().map(function (bot) {
+      var list = reportsFor(bot.bot_id);
+      var latest = list[0];
+      if (!latest) return '';
+      var older = list.slice(1);
+      var open = state.cardOpen.has(bot.bot_id);
+      var hist = state.histOpen.has(bot.bot_id);
+      var cardNew = fresh && fresh.has(latest.path) ? ' is-new' : '';
+      var picked = state.focus === bot.bot_id ? ' is-picked' : '';
+      var values = list.slice().reverse().map(function (report) { return report.signal_strength; });
+      var past = older.map(function (report) {
+        var rowOpen = state.pastOpen.has(report.path);
+        return '<div><button type="button" class="line" data-toggle="past" data-path="' + esc(report.path) + '" aria-expanded="' + (rowOpen ? 'true' : 'false') + '">' +
+          dotHtml(report.status, { level: 'ok' }) +
+          '<span class="tag">' + esc(report.tag) + '</span>' +
+          '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
+          '<span class="sum">' + esc(report.summary) + '</span></button>' +
+          '<div class="expand" data-panel="past" data-path="' + esc(report.path) + '"' + (rowOpen ? '' : ' hidden') + '>' + detailHtml(report) + '</div></div>';
+      }).join('');
+      return '<article class="card sync-' + sync.level + cardNew + picked + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '">' +
+        sparkline(values) +
+        '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + dotHtml(latest.status, sync) + '</div>' +
+        '<p class="role">' + esc(latest.role || '') + '</p>' +
+        '<p class="when">' + esc(formatReportTime(latest.timestamp)) + '</p>' +
+        '<p class="summary" data-summary="' + esc(latest.summary) + '">' + esc(liveSummary(latest.summary, sync)) + '</p>' +
+        pillsHtml(latest.sources) +
+        '<div class="expand" data-panel="card" data-path="' + esc(latest.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(latest) + '</div>' +
+        '<button type="button" class="hist" data-history="' + esc(bot.bot_id) + '" aria-expanded="' + (hist ? 'true' : 'false') + '">历史</button>' +
+        '<div class="past" data-history-panel="' + esc(bot.bot_id) + '"' + (hist ? '' : ' hidden') + '>' + past + '</div>' +
+        '</article>';
+    }).join('');
+
+    var rows = allReports().filter(function (report) {
+      return !state.focus || report.bot_id === state.focus;
+    });
+    document.getElementById('timeline').innerHTML = '<h3>时间线</h3>' + rows.map(function (report) {
       var open = state.timeOpen.has(report.path);
       var freshClass = fresh && fresh.has(report.path) ? ' is-new' : '';
-      return '<div class="' + freshClass.trim() + '">' +
-        '<button type="button" class="tl" data-scope="time" data-path="' + esc(report.path) + '" data-toggle aria-expanded="' + (open ? 'true' : 'false') + '">' +
-          dotHtml(report.status, sync) +
-          '<span class="who">' + esc(report.name) + '</span>' +
-          '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
-          '<span class="sum">' + esc(report.summary) + '</span>' +
-        '</button>' +
-        '<div class="detail" data-scope="time" data-path="' + esc(report.path) + '" data-body' + (open ? '' : ' hidden') + '>' +
-          '<div class="md">' + mdHtml(report.body) + '</div>' + sourcesHtml(report.sources) +
-        '</div></div>';
+      return '<div class="' + freshClass.trim() + '"><button type="button" class="tl" data-toggle="time" data-path="' + esc(report.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+        dotHtml(report.status, { level: 'ok' }) +
+        '<span class="tag">' + esc(report.tag) + '</span>' +
+        '<span class="person">' + esc(report.name) + '</span>' +
+        '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
+        '<span class="sum">' + esc(report.summary) + '</span></button>' +
+        '<div class="expand" data-panel="time" data-path="' + esc(report.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(report) + '</div></div>';
     }).join('');
 
     if (!document.documentElement.classList.contains('ready')) {
@@ -307,28 +407,30 @@
     }
   }
 
+function kpi(label, value, delta) {
+  var id = label === '同步' ? ' id="kpi-sync"' : '';
+  return '<div class="kpi"><div class="kpi-label">' + label + '</div><div class="kpi-value"' + id + '>' +
+    value + trendHtml(delta) + '</div></div>';
+}
+
   function paintSync() {
     var sync = syncState();
-    var top = document.getElementById('topbar');
-    if (!top || !signature) return;
-    top.classList.remove('sync-ok', 'sync-warn', 'sync-down');
-    top.classList.add('sync-' + sync.level);
-    var label = document.getElementById('sync-label');
-    if (label) {
-      label.textContent = syncLabel(sync);
-      label.classList.toggle('long', sync.level === 'down');
+    if (!signature) return;
+    var outage = sync.level === 'down';
+    var globalDot = document.getElementById('global-dot');
+    if (globalDot) globalDot.className = 'dot' + (outage ? ' dim' : ' ok glow');
+    var syncNode = document.getElementById('kpi-sync');
+    if (syncNode) {
+      var trend = syncNode.querySelector('.trend');
+      syncNode.textContent = sync.at ? formatShort(sync.at) : '—';
+      if (trend) syncNode.appendChild(trend);
     }
-    document.querySelectorAll('.bot').forEach(function (bot) {
-      bot.classList.remove('sync-ok', 'sync-warn', 'sync-down');
-      bot.classList.add('sync-' + sync.level);
+    document.querySelectorAll('.card').forEach(function (card) {
+      card.classList.remove('sync-ok', 'sync-warn', 'sync-down');
+      card.classList.add('sync-' + sync.level);
     });
-    document.querySelectorAll('.card .summary[data-summary]').forEach(function (node) {
+    document.querySelectorAll('.summary[data-summary]').forEach(function (node) {
       node.textContent = liveSummary(node.getAttribute('data-summary'), sync);
-    });
-    var glow = sync.level === 'ok';
-    document.querySelectorAll('.dot').forEach(function (dot) {
-      dot.classList.toggle('glow', glow);
-      if (sync.level === 'warn') dot.style.background = '';
     });
   }
 
@@ -340,56 +442,76 @@
     });
   }
 
-  function setOpen(set, scope, path) {
-    if (set.has(path)) set.delete(path);
-    else set.add(path);
-    var on = set.has(path);
-    document.querySelectorAll('[data-scope="' + scope + '"]').forEach(function (el) {
+  function openSet(kind) {
+    if (kind === 'card') return state.cardOpen;
+    if (kind === 'past') return state.pastOpen;
+    return state.timeOpen;
+  }
+
+  function togglePanel(kind, path) {
+    var set = openSet(kind);
+    var on = !set.has(path);
+    if (on) set.add(path); else set.delete(path);
+    document.querySelectorAll('[data-panel="' + kind + '"]').forEach(function (el) {
       if (el.getAttribute('data-path') !== path) return;
-      if (el.hasAttribute('data-body')) el.hidden = !on;
-      if (el.hasAttribute('data-toggle')) el.setAttribute('aria-expanded', on ? 'true' : 'false');
+      el.hidden = !on;
+      if (on) el.classList.add('reveal');
     });
+    document.querySelectorAll('[data-toggle="' + kind + '"]').forEach(function (el) {
+      if (el.getAttribute('data-path') !== path) return;
+      el.setAttribute('aria-expanded', on ? 'true' : 'false');
+    });
+    if (kind === 'card') {
+      document.querySelectorAll('[data-card]').forEach(function (card) {
+        if (card.getAttribute('data-path') === path) card.setAttribute('data-open', on ? 'true' : 'false');
+      });
+    }
   }
 
   function onClick(event) {
     if (event.target.closest('a')) return;
+    var focus = event.target.closest('[data-focus]');
+    if (focus) {
+      var id = focus.getAttribute('data-focus');
+      state.focus = state.focus === id ? '' : id;
+      signature = '';
+      paint(new Set());
+      if (state.focus) {
+        var card = document.querySelector('[data-card="' + CSS.escape(state.focus) + '"]');
+        if (card) card.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      }
+      return;
+    }
     var history = event.target.closest('[data-history]');
     if (history) {
-      var id = history.getAttribute('data-history');
-      var panel = document.querySelector('[data-history-panel="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
-      var open = !state.historyOpen.has(id);
-      if (open) state.historyOpen.add(id);
-      else state.historyOpen.delete(id);
+      event.stopPropagation();
+      var botId = history.getAttribute('data-history');
+      var open = !state.histOpen.has(botId);
+      if (open) state.histOpen.add(botId); else state.histOpen.delete(botId);
+      var panel = document.querySelector('[data-history-panel="' + CSS.escape(botId) + '"]');
       if (panel) panel.hidden = !open;
       history.setAttribute('aria-expanded', open ? 'true' : 'false');
       return;
     }
-    var hit = event.target.closest('[data-toggle]');
-    if (!hit) return;
-    var path = hit.getAttribute('data-path');
-    var scope = hit.getAttribute('data-scope');
-    var sets = { card: state.cardOpen, hist: state.histOpen, time: state.timeOpen };
-    setOpen(sets[scope] || state.cardOpen, scope, path);
-  }
-
-  function onKey(event) {
-    var hit = event.target.closest('[data-toggle]');
-    if (!hit || hit.tagName === 'BUTTON') return;
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      hit.click();
+    var toggle = event.target.closest('[data-toggle]');
+    if (toggle) {
+      togglePanel(toggle.getAttribute('data-toggle'), toggle.getAttribute('data-path'));
+      return;
     }
+    if (event.target.closest('.expand') || event.target.closest('.pills')) return;
+    var card = event.target.closest('[data-card]');
+    if (card) togglePanel('card', card.getAttribute('data-path'));
   }
 
   function mapPool(items, limit, fn) {
     var cursor = 0;
     var workers = [];
-    var size = Math.min(limit, items.length);
     function worker() {
       if (cursor >= items.length) return Promise.resolve();
       var index = cursor++;
       return Promise.resolve(fn(items[index])).then(worker);
     }
+    var size = Math.min(limit, items.length);
     for (var i = 0; i < size; i++) workers.push(worker());
     return Promise.all(workers);
   }
@@ -400,7 +522,7 @@
       var bots = Array.isArray(crew.bots) ? crew.bots.slice() : [];
       bots.sort(function (a, b) { return Number(a.display_order) - Number(b.display_order); });
       state.bots = bots;
-      if (bots.length) document.title = bots.map(function (bot) { return bot.en_name; }).join(' · ');
+      document.title = 'Crew';
     });
   }
 
@@ -410,19 +532,16 @@
       return getText('reports/index.json');
     }).then(function (text) {
       var index = JSON.parse(text);
-      var folders = new Set(state.bots.map(function (bot) { return bot.folder; }));
-      var paths = (index.reports || []).map(function (item) { return item.path; }).filter(function (path) {
-        var folder = String(path || '').split('/')[1];
-        return folders.has(folder);
-      });
+      var ids = new Set(state.bots.map(function (bot) { return bot.bot_id; }));
+      var paths = (index.reports || []).map(function (item) { return item.path; });
       var missing = paths.filter(function (path) { return !state.reports.has(path); });
       return mapPool(missing, 8, function (path) {
         return getText(path).then(function (body) {
-          state.reports.set(path, parseReport(body, path));
+          var report = parseReport(body, path);
+          if (!ids.has(report.bot_id)) return;
+          state.reports.set(path, report);
           fresh.add(path);
-        }).catch(function (error) {
-          console.warn(path, error);
-        });
+        }).catch(function (error) { console.warn(path, error); });
       });
     }).then(function () {
       state.lastOkAt = Date.now();
@@ -443,7 +562,6 @@
   }
 
   app.addEventListener('click', onClick);
-  app.addEventListener('keydown', onKey);
 
   gateForm.addEventListener('submit', function (event) {
     event.preventDefault();

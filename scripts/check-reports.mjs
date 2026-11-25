@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Checks registered bots' markdown against the fixed frontmatter fields.
+// Checks markdown under reports/ against the fixed frontmatter fields.
+// Identity is bot_id. The display name does not have to match the registry.
 import { createRequire } from 'node:module';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,102 +17,99 @@ function fail(message) {
   errors.push(message);
 }
 
-if (!crew || !Array.isArray(crew.bots)) {
-  fail('config/crew.json needs a bots array');
-}
-
+if (!crew || !Array.isArray(crew.bots)) fail('config/crew.json needs a bots array');
 const bots = Array.isArray(crew.bots) ? crew.bots : [];
-const seenIds = new Set();
-const seenFolders = new Set();
-
+const ids = new Set();
 for (const bot of bots) {
-  for (const key of ['bot_id', 'en_name', 'folder', 'display_order']) {
-    if (bot[key] === undefined || bot[key] === '') fail(`bot missing ${key}: ${JSON.stringify(bot)}`);
+  for (const key of ['bot_id', 'en_name', 'display_order']) {
+    if (bot[key] === undefined || bot[key] === '') fail(`bot missing ${key}`);
   }
-  if (seenIds.has(bot.bot_id)) fail(`duplicate bot_id ${bot.bot_id}`);
-  if (seenFolders.has(bot.folder)) fail(`duplicate folder ${bot.folder}`);
-  seenIds.add(bot.bot_id);
-  seenFolders.add(bot.folder);
-  if (!/^[a-z0-9-]+$/.test(String(bot.folder))) {
-    fail(`folder must be lowercase ascii: ${bot.folder}`);
-  }
+  if (ids.has(bot.bot_id)) fail(`duplicate bot_id ${bot.bot_id}`);
+  ids.add(bot.bot_id);
 }
 
 const fileName = /^(\d{4}-\d{2}-\d{2})-(\d{4})\.md$/;
 const stamp = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):\d{2}[+-]\d{2}:\d{2}$/;
 
-for (const bot of bots) {
-  const dir = join(root, 'reports', bot.folder);
-  if (!existsSync(dir)) continue;
-  const names = readdirSync(dir).filter((name) => name.endsWith('.md')).sort();
-  for (const name of names) {
-    const where = `reports/${bot.folder}/${name}`;
-    const named = name.match(fileName);
-    if (!named) {
-      fail(`${where} filename must be YYYY-MM-DD-HHmm.md`);
-      continue;
-    }
-    const text = readFileSync(join(dir, name), 'utf8');
-    const fenced = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
-    if (!fenced) {
-      fail(`${where} missing frontmatter`);
-      continue;
-    }
-    let data;
-    try {
-      data = yaml.load(fenced[1]);
-    } catch (error) {
-      fail(`${where} YAML: ${error.message}`);
-      continue;
-    }
-    if (!data || typeof data !== 'object') {
-      fail(`${where} frontmatter is empty`);
-      continue;
-    }
-    for (const key of ['bot_id', 'en_name', 'timestamp', 'status', 'summary', 'sources']) {
-      if (data[key] === undefined) fail(`${where} missing ${key}`);
-    }
-    if (data.bot_id !== bot.bot_id) fail(`${where} bot_id ${data.bot_id} != ${bot.bot_id}`);
-    if (data.en_name !== bot.en_name) fail(`${where} en_name ${data.en_name} != ${bot.en_name}`);
-    if (!['ok', 'warn', 'down'].includes(data.status)) fail(`${where} bad status ${data.status}`);
-    if (typeof data.summary !== 'string' || !data.summary.trim() || data.summary.includes('\n')) {
-      fail(`${where} summary must be one line`);
-    }
-    const when = String(data.timestamp || '');
-    const matched = when.match(stamp);
-    if (!matched) fail(`${where} timestamp must be ISO 8601 with a numeric offset`);
-    else if (`${matched[1]}-${matched[2]}${matched[3]}` !== `${named[1]}-${named[2]}`) {
-      fail(`${where} filename clock does not match timestamp ${when}`);
-    }
-    if (!Array.isArray(data.sources) || data.sources.length === 0) {
-      fail(`${where} sources must be a non-empty list`);
-    } else {
-      data.sources.forEach((source, index) => {
-        if (!source || typeof source.name !== 'string' || !source.name.trim()) {
-          fail(`${where} sources[${index}].name`);
-        }
-        if (!source || typeof source.url !== 'string' || !/^https?:\/\//i.test(source.url)) {
-          fail(`${where} sources[${index}].url`);
-        }
-      });
-    }
-    const body = text.slice(fenced[0].length).trim();
-    if (!body) fail(`${where} empty body`);
+function walk(dir, found) {
+  if (!existsSync(dir)) return;
+  for (const entry of readdirSync(dir)) {
+    if (entry.startsWith('.')) continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, found);
+    else if (entry.endsWith('.md')) found.push(full);
   }
+}
+
+const files = [];
+walk(join(root, 'reports'), files);
+
+for (const full of files) {
+  const rel = full.slice(root.length + 1).split(/[\\/]/).join('/');
+  const name = rel.split('/').pop();
+  const named = name.match(fileName);
+  if (!named) {
+    fail(`${rel} filename must be YYYY-MM-DD-HHmm.md`);
+    continue;
+  }
+  const text = readFileSync(full, 'utf8');
+  const fenced = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  if (!fenced) {
+    fail(`${rel} missing frontmatter`);
+    continue;
+  }
+  let data;
+  try {
+    data = yaml.load(fenced[1]);
+  } catch (error) {
+    fail(`${rel} YAML: ${error.message}`);
+    continue;
+  }
+  for (const key of ['bot_id', 'en_name', 'timestamp', 'status', 'summary', 'sources']) {
+    if (!data || data[key] === undefined) fail(`${rel} missing ${key}`);
+  }
+  if (!data) continue;
+  if (!ids.has(data.bot_id)) fail(`${rel} bot_id ${data.bot_id} is not registered`);
+  if (!['ok', 'warn', 'down'].includes(data.status)) fail(`${rel} bad status ${data.status}`);
+  if (typeof data.summary !== 'string' || !data.summary.trim() || data.summary.includes('\n')) {
+    fail(`${rel} summary must be one line`);
+  }
+  const when = String(data.timestamp || '');
+  const matched = when.match(stamp);
+  if (!matched) fail(`${rel} timestamp must be ISO 8601 with a numeric offset`);
+  else if (`${matched[1]}-${matched[2]}${matched[3]}` !== `${named[1]}-${named[2]}`) {
+    fail(`${rel} filename clock does not match timestamp ${when}`);
+  }
+  if (data.role != null && [...String(data.role)].length > 8) fail(`${rel} role is longer than 8 characters`);
+  if (data.tag != null) {
+    const tagLength = [...String(data.tag)].length;
+    if (tagLength < 2 || tagLength > 3) fail(`${rel} tag must be 2–3 characters`);
+  }
+  if (data.signal_strength != null) {
+    const strength = Number(data.signal_strength);
+    if (!Number.isFinite(strength) || strength < 0 || strength > 100) fail(`${rel} signal_strength out of 0–100`);
+  }
+  if (data.flow != null) {
+    if (!Array.isArray(data.flow)) fail(`${rel} flow must be a list`);
+    else data.flow.forEach((step, index) => {
+      if (!step || !['signal', 'path', 'impact'].includes(step.stage)) fail(`${rel} flow[${index}].stage`);
+      if (!step || typeof step.text !== 'string' || !step.text.trim()) fail(`${rel} flow[${index}].text`);
+    });
+  }
+  if (!Array.isArray(data.sources) || data.sources.length === 0) fail(`${rel} sources must be a non-empty list`);
+  else data.sources.forEach((source, index) => {
+    if (!source || typeof source.name !== 'string' || !source.name.trim()) fail(`${rel} sources[${index}].name`);
+    if (!source || typeof source.url !== 'string' || !/^https?:\/\//i.test(source.url)) fail(`${rel} sources[${index}].url`);
+    if (!source || !['news', 'paper', 'patent'].includes(source.type)) fail(`${rel} sources[${index}].type`);
+  });
+  if (!text.slice(fenced[0].length).trim()) fail(`${rel} empty body`);
 }
 
 const indexPath = join(root, 'reports', 'index.json');
 if (existsSync(indexPath)) {
   const index = JSON.parse(readFileSync(indexPath, 'utf8'));
   const listed = new Set((index.reports || []).map((item) => item.path));
-  const expected = [];
-  for (const bot of bots) {
-    const dir = join(root, 'reports', bot.folder);
-    if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) {
-      if (name.endsWith('.md')) expected.push(`reports/${bot.folder}/${name}`);
-    }
-  }
+  const expected = files.map((full) => full.slice(root.length + 1).split(/[\\/]/).join('/'));
   for (const path of expected) {
     if (!listed.has(path)) fail(`reports/index.json missing ${path} — run node scripts/build-index.mjs`);
   }
@@ -124,5 +122,4 @@ if (errors.length) {
   for (const error of errors) console.error(error);
   process.exit(1);
 }
-
-console.log(`ok (${bots.length} bots)`);
+console.log(`ok (${bots.length} bots, ${files.length} files)`);
