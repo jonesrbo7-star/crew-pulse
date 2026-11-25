@@ -337,8 +337,15 @@
   }
 
   function pillsHtml(sources) {
-    if (!sources || !sources.length) return '';
-    return '<ul class="pills">' + sources.map(function (source) {
+    var seen = {};
+    var list = (sources || []).filter(function (source) {
+      var key = String((source && (source.name || source.url)) || '').trim().toLowerCase();
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+    if (!list.length) return '';
+    return '<ul class="pills">' + list.map(function (source) {
       var type = sourceType(source);
       var name = esc(source.name || source.url || '');
       var url = String(source.url || '');
@@ -369,10 +376,33 @@
   }
 
   function detailHtml(report, withSources) {
-    var flow = flowHtml(report);
-    var cls = 'expand-layout' + (flow ? ' has-flow' : '');
     var sources = withSources ? pillsHtml(report.sources) : '';
-    return '<div class="' + cls + '">' + flow + '<div class="md">' + mdHtml(report.body) + '</div>' + sources + '</div>';
+    return '<div class="expand-layout"><div class="md">' + mdHtml(report.body) + '</div>' + sources + '</div>';
+  }
+
+  function botById(id) {
+    var found = null;
+    state.bots.forEach(function (bot) { if (bot.bot_id === id) found = bot; });
+    return found;
+  }
+
+  function cadenceMs(bot) {
+    var hours = Number(bot && bot.cadence_hours);
+    if (!isFinite(hours) || hours <= 0) hours = 24;
+    return hours * 60 * 60 * 1000;
+  }
+
+  function freshLevel(bot, iso) {
+    var at = Date.parse(iso || '');
+    if (!isFinite(at)) return 'down';
+    if (Date.now() - at >= cadenceMs(bot) * 2) return 'down';
+    return 'ok';
+  }
+
+  function dotClass(level) {
+    if (level === 'down') return 'dot hollow';
+    if (level === 'warn') return 'dot warn';
+    return 'dot fresh';
   }
 
   function markHtml(status) {
@@ -381,11 +411,9 @@
     return '<span class="mark" aria-hidden="true"></span>';
   }
 
-  function statusDot(sync) {
-    var level = sync && sync.level;
-    if (level === 'down') return '<span class="dot hollow" aria-hidden="true"></span>';
-    if (level === 'warn') return '<span class="dot warn" aria-hidden="true"></span>';
-    return '<span class="dot iron glow" aria-hidden="true"></span>';
+  function statusDot(bot, iso) {
+    var level = freshLevel(bot, iso);
+    return '<span class="' + dotClass(level) + '" data-fresh="' + esc(bot.bot_id) + '" data-at="' + esc(iso || '') + '" aria-hidden="true"></span>';
   }
 
   function deltaNote(delta) {
@@ -449,7 +477,7 @@
     var sync = syncState();
     var stats = metrics(sync);
     var globalDot = document.getElementById('global-dot');
-    globalDot.className = 'dot ' + (sync.level === 'down' ? 'hollow' : sync.level === 'warn' ? 'warn' : 'iron glow');
+    globalDot.className = dotClass(sync.level);
     document.documentElement.classList.remove('sync-ok', 'sync-warn', 'sync-down');
     document.documentElement.classList.add('sync-' + sync.level);
 
@@ -490,12 +518,12 @@
       }).join('');
       var blurb = cardSummary(latest);
       return '<article class="card sync-' + sync.level + cardNew + picked + (open ? ' is-open' : '') + '" data-card="' + esc(bot.bot_id) + '" data-path="' + esc(latest.path) + '" style="--accent:' + accentOf(bot.bot_id) + '">' +
-        '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + statusDot(sync) + '</div>' +
+        '<div class="who-row"><h2>' + esc(bot.en_name) + '</h2>' + statusDot(bot, latest.timestamp) + '</div>' +
         '<p class="role">' + esc(latest.role || '') + '</p>' +
         '<p class="when">' + esc(formatReportTime(latest.timestamp)) + '</p>' +
         '<p class="summary" data-summary="' + esc(blurb) + '">' + esc(liveSummary(blurb, sync)) + '</p>' +
-        pillsHtml(latest.sources) +
-        '<button type="button" class="hist" data-history="' + esc(bot.bot_id) + '" aria-expanded="' + (hist ? 'true' : 'false') + '">历史</button>' +
+        '<div class="meta-row">' + pillsHtml(latest.sources) +
+        '<button type="button" class="hist" data-history="' + esc(bot.bot_id) + '" aria-expanded="' + (hist ? 'true' : 'false') + '">历史</button></div>' +
         '<div class="past" data-history-panel="' + esc(bot.bot_id) + '"' + (hist ? '' : ' hidden') + '>' + past + '</div>' +
         '<div class="expand" data-panel="card" data-path="' + esc(latest.path) + '"' + (open ? '' : ' hidden') + '>' + detailHtml(latest) + '</div>' +
         '</article>';
@@ -532,7 +560,10 @@
     var sync = syncState();
     if (!signature) return;
     var globalDot = document.getElementById('global-dot');
-    if (globalDot) globalDot.className = 'dot ' + (sync.level === 'down' ? 'hollow' : sync.level === 'warn' ? 'warn' : 'iron glow');
+    if (globalDot) globalDot.className = dotClass(sync.level);
+    document.querySelectorAll('[data-fresh]').forEach(function (dot) {
+      dot.className = dotClass(freshLevel(botById(dot.getAttribute('data-fresh')), dot.getAttribute('data-at')));
+    });
     document.documentElement.classList.remove('sync-ok', 'sync-warn', 'sync-down');
     document.documentElement.classList.add('sync-' + sync.level);
     var syncNode = document.getElementById('kpi-sync');

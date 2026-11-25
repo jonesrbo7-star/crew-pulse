@@ -27,6 +27,7 @@ for (const bot of bots) {
   if (ids.has(bot.bot_id)) fail(`duplicate bot_id ${bot.bot_id}`);
   ids.add(bot.bot_id);
   if (bot.color != null && !/^#[0-9A-Fa-f]{6}$/.test(String(bot.color))) fail(`bad color for ${bot.bot_id}`);
+  if (!(Number(bot.cadence_hours) > 0)) fail(`cadence_hours for ${bot.bot_id}`);
 }
 
 const fileName = /^(\d{4}-\d{2}-\d{2})-(\d{4})\.md$/;

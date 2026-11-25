@@ -46,4 +46,4 @@ flow:
 
 最后的判断，单独成节。置信度写在这一节里。
 
-`flow` 可省略。没有 `flow` 时，正文占满展开区域。文件名 `<YYYY-MM-DD-HHmm>.md` 的时钟与 `timestamp` 一致。身份只看 `bot_id`。
+`flow` 可省略。页面不画出 `flow`。文件名 `<YYYY-MM-DD-HHmm>.md` 的时钟与 `timestamp` 一致。身份只看 `bot_id`。
