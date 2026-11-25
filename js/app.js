@@ -286,7 +286,9 @@
     return flowHtml(report) + '<div class="md">' + mdHtml(report.body) + '</div>' + citesHtml(report.sources);
   }
 
-  function markHtml() {
+  function markHtml(status) {
+    if (status === 'down') return '<span class="mark down" aria-hidden="true"></span>';
+    if (status === 'warn') return '<span class="mark warn" aria-hidden="true"></span>';
     return '<span class="mark" aria-hidden="true"></span>';
   }
 
@@ -391,7 +393,7 @@
       var past = older.map(function (report) {
         var rowOpen = state.pastOpen.has(report.path);
         return '<div style="--accent:' + accentOf(bot.bot_id) + '"><button type="button" class="line" data-toggle="past" data-path="' + esc(report.path) + '" aria-expanded="' + (rowOpen ? 'true' : 'false') + '">' +
-          markHtml() +
+          markHtml(report.status) +
           '<span class="tag">' + esc(report.tag) + '</span>' +
           '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
           '<span class="sum">' + esc(report.summary) + '</span></button>' +
@@ -418,7 +420,7 @@
       var open = state.timeOpen.has(report.path);
       var freshClass = fresh && fresh.has(report.path) ? ' is-new' : '';
       return '<div class="' + freshClass.trim() + '" style="--accent:' + accentOf(report.bot_id) + '"><button type="button" class="tl" data-toggle="time" data-path="' + esc(report.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
-        markHtml() +
+        markHtml(report.status) +
         '<span class="tag">' + esc(report.tag) + '</span>' +
         '<span class="person">' + esc(report.name) + '</span>' +
         '<span class="when">' + esc(formatReportTime(report.timestamp)) + '</span>' +
