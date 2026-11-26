@@ -359,6 +359,7 @@
     if (raw && !clipped) return raw;
     var lead = '';
     String(report.body || '').split(/\n/).some(function (line) {
+      if (/^\s*#{1,6}\s/.test(line)) return false;
       var text = line.replace(/^#+\s*/, '').replace(/\*\*/g, '').replace(/^[-*]\s+/, '').replace(/^>\s*/, '').trim();
       if (!text) return false;
       lead = text;

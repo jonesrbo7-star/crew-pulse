@@ -37,7 +37,7 @@
       "order": 4,
       "display_order": 4,
       "color": "#3B6E8C",
-      "cadence_hours": 24,
+      "cadence_hours": 48,
       "role": "数字产品机会"
     },
     {
@@ -47,7 +47,7 @@
       "order": 5,
       "display_order": 5,
       "color": "#54789E",
-      "cadence_hours": 24,
+      "cadence_hours": 84,
       "role": "商业机会雷达"
     },
     {
