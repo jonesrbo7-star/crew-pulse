@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-26T02:42:38.628732Z",
+  "generated_at": "2026-11-26T13:38:00.827Z",
   "reports": [
     {
       "path": "reports/theo/2026-11-25-2131.md",
@@ -70,6 +70,11 @@
       "path": "reports/johnson/2026-11-20-1858.md",
       "folder": "johnson",
       "file": "2026-11-20-1858.md"
+    },
+    {
+      "path": "reports/john/2026-11-26-0656.md",
+      "folder": "john",
+      "file": "2026-11-26-0656.md"
     },
     {
       "path": "reports/john/2026-11-25-1855.md",
