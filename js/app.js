@@ -299,14 +299,39 @@
     return localDay(date);
   }
 
-  function formatClock(ms) {
+  // Sync times are instants (Date.now()); show them in US Eastern, like the card dates.
+  var NY_TIME = (function () {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: 'numeric', minute: 'numeric', hourCycle: 'h23'
+      });
+    } catch (e) { return null; }
+  })();
+
+  function nyParts(ms) {
     var date = new Date(ms);
-    return date.getFullYear() + '年' + (date.getMonth() + 1) + '月' + date.getDate() + '日 ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+    if (!NY_TIME) {
+      return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(), hour: date.getHours(), minute: date.getMinutes() };
+    }
+    var out = {};
+    NY_TIME.formatToParts(date).forEach(function (part) { out[part.type] = Number(part.value); });
+    return { year: out.year, month: out.month, day: out.day, hour: out.hour % 24, minute: out.minute };
+  }
+
+  function nyDay(ms) {
+    var p = nyParts(ms);
+    return p.year + '-' + pad(p.month) + '-' + pad(p.day);
+  }
+
+  function formatClock(ms) {
+    var p = nyParts(ms);
+    return p.year + '年' + p.month + '月' + p.day + '日 ' + pad(p.hour) + ':' + pad(p.minute);
   }
 
   function formatShort(ms) {
-    var date = new Date(ms);
-    return (date.getMonth() + 1) + '月' + date.getDate() + '日 ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+    var p = nyParts(ms);
+    return p.month + '月' + p.day + '日 ' + pad(p.hour) + ':' + pad(p.minute);
   }
 
   function syncState() {
@@ -500,7 +525,7 @@
   }
 
   function metrics(sync) {
-    var today = localDay(new Date());
+    var today = nyDay(Date.now());
     var yesterday = shiftDay(today, -1);
     var todayList = [];
     var yList = [];
