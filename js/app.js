@@ -835,23 +835,45 @@
   lockWrap.addEventListener('click', function (event) { event.stopPropagation(); });
   document.addEventListener('click', function () { setPopover(false); });
 
+  function unlock() {
+    if (document.documentElement.classList.contains('unlocked')) return;
+    gateError.classList.remove('is-shown');
+    try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+    document.documentElement.classList.add('unlocked');
+    gateInput.value = '';
+    setPopover(false);
+    start();
+  }
+
+  // Explicit submit (Enter / "go" key): a wrong value shows the message and clears the field.
   gateForm.addEventListener('submit', function (event) {
     event.preventDefault();
-    passwordOk(gateInput.value).then(function (ok) {
-      if (!ok) {
-        gateError.classList.add('is-shown');
-        gateInput.value = '';
-        gateInput.focus();
-        return;
-      }
-      gateError.classList.remove('is-shown');
-      try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
-      document.documentElement.classList.add('unlocked');
-      setPopover(false);
-      start();
+    clearTimeout(typingTimer);
+    var typed = gateInput.value;
+    passwordOk(typed).then(function (ok) {
+      if (ok) { unlock(); return; }
+      gateError.classList.add('is-shown');
+      gateInput.value = '';
+      gateInput.focus();
     }).catch(function () {
       gateError.classList.add('is-shown');
     });
+  });
+
+  // Auto-unlock while typing: no confirm button needed on a phone. Quiet while the value is still wrong.
+  var typingTimer = 0;
+  var typingSeq = 0;
+  gateInput.addEventListener('input', function () {
+    gateError.classList.remove('is-shown');
+    clearTimeout(typingTimer);
+    var seq = ++typingSeq;
+    var typed = gateInput.value;
+    if (!typed) return;
+    typingTimer = setTimeout(function () {
+      passwordOk(typed).then(function (ok) {
+        if (ok && seq === typingSeq) unlock();
+      }).catch(function () {});
+    }, 150);
   });
 
   renderShell();
