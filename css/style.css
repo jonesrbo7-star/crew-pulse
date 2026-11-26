@@ -503,6 +503,7 @@ html.ready #app { display: flex; flex-direction: column; }
   padding: 8px;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 .md th {
   font-weight: 500;
@@ -542,7 +543,7 @@ html.ready #app { display: flex; flex-direction: column; }
   color: var(--muted);
 }
 .md ol.sources li { font-size: 13px; line-height: 1.55; scroll-margin-top: 16px; }
-.md ol.sources a { color: var(--paper-ink); text-decoration: none; }
+.md ol.sources a { color: var(--paper-ink); text-decoration: none; overflow-wrap: anywhere; }
 .md ol.sources a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .md .tldr, .md .verdict {
   width: 100%;
