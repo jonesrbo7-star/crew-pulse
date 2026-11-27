@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-27T02:35:50.476618Z",
+  "generated_at": "2026-11-27T13:32:42.882008Z",
   "reports": [
     {
       "path": "reports/theo/2026-11-26-2037.md",
@@ -35,6 +35,11 @@
       "path": "reports/theo/2026-11-21-0937.md",
       "folder": "theo",
       "file": "2026-11-21-0937.md"
+    },
+    {
+      "path": "reports/marcus/2026-11-27-0752.md",
+      "folder": "marcus",
+      "file": "2026-11-27-0752.md"
     },
     {
       "path": "reports/marcus/2026-11-25-0758.md",
@@ -80,6 +85,11 @@
       "path": "reports/johnson/2026-11-20-1858.md",
       "folder": "johnson",
       "file": "2026-11-20-1858.md"
+    },
+    {
+      "path": "reports/john/2026-11-27-0657.md",
+      "folder": "john",
+      "file": "2026-11-27-0657.md"
     },
     {
       "path": "reports/john/2026-11-26-1858.md",
