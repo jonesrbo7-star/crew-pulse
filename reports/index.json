@@ -1,6 +1,11 @@
 {
-  "generated_at": "2026-11-27T13:32:42.882008Z",
+  "generated_at": "2026-11-28T02:31:14.951648Z",
   "reports": [
+    {
+      "path": "reports/theo/2026-11-27-2041.md",
+      "folder": "theo",
+      "file": "2026-11-27-2041.md"
+    },
     {
       "path": "reports/theo/2026-11-26-2037.md",
       "folder": "theo",
@@ -52,6 +57,11 @@
       "file": "2026-11-24-0640.md"
     },
     {
+      "path": "reports/johnson/2026-11-27-1905.md",
+      "folder": "johnson",
+      "file": "2026-11-27-1905.md"
+    },
+    {
       "path": "reports/johnson/2026-11-26-1910.md",
       "folder": "johnson",
       "file": "2026-11-26-1910.md"
@@ -85,6 +95,11 @@
       "path": "reports/johnson/2026-11-20-1858.md",
       "folder": "johnson",
       "file": "2026-11-20-1858.md"
+    },
+    {
+      "path": "reports/john/2026-11-27-1854.md",
+      "folder": "john",
+      "file": "2026-11-27-1854.md"
     },
     {
       "path": "reports/john/2026-11-27-0657.md",
@@ -130,6 +145,11 @@
       "path": "reports/john/2026-11-23-0659.md",
       "folder": "john",
       "file": "2026-11-23-0659.md"
+    },
+    {
+      "path": "reports/ivo/2026-11-27-1948.md",
+      "folder": "ivo",
+      "file": "2026-11-27-1948.md"
     },
     {
       "path": "reports/ivo/2026-11-26-1951.md",
